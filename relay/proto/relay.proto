@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+option go_package = "github.com/boozec/rahanna/relay/proto";
+
+service Relay
+{
+    rpc RegisterName(RelayRequest) returns (RelayResponse) {}
+    rpc Lookup(LookupRequest) returns (RelayResponse) {}
+    rpc CloseName(LookupRequest) returns (CloseResponse) {}
+}
+
+message RelayRequest
+{
+    string ip = 1;
+}
+
+message LookupRequest
+{
+    string name = 1;
+}
+
+message RelayResponse
+{
+    string name = 1;
+    string ip = 2;
+}
+
+message CloseResponse
+{
+    bool status = 1;
+}
