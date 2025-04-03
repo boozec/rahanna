@@ -1,22 +1,26 @@
 package main
 
 import (
+	"log/slog"
+	"net/http"
 	"os"
 
 	"github.com/boozec/rahanna/api/database"
 	"github.com/boozec/rahanna/api/handlers"
 	"github.com/gorilla/mux"
-	"net/http"
+	"github.com/rs/cors"
 )
 
 func main() {
 	database.InitDb(os.Getenv("DATABASE_URL"))
 
 	r := mux.NewRouter()
-	r.HandleFunc("/register", handlers.RegisterUser).Methods(http.MethodPost)
-	r.HandleFunc("/login", handlers.LoginUser).Methods(http.MethodPost)
+	r.HandleFunc("/auth/register", handlers.RegisterUser).Methods(http.MethodPost)
+	r.HandleFunc("/auth/login", handlers.LoginUser).Methods(http.MethodPost)
 
-	if err := http.ListenAndServe(":8080", r); err != nil {
+	slog.Info("Serving on :8080")
+	handler := cors.AllowAll().Handler(r)
+	if err := http.ListenAndServe(":8080", handler); err != nil {
 		panic(err)
 	}
 }

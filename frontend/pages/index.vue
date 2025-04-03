@@ -1,20 +1,7 @@
-<script setup lang="ts">
-const props = defineProps<{
-    title: string;
-}>();
-
-const toast = useToast();
-
-function showToast() {
-    toast.add(props);
-}
-</script>
+<script setup lang="ts"></script>
 
 <template>
-    <UButton
-        label="Show toast"
-        color="neutral"
-        variant="outline"
-        @click="showToast"
-    />
+    <div>
+        <h1>Hello</h1>
+    </div>
 </template>

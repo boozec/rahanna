@@ -7,15 +7,15 @@
                 <h1
                     class="text-center text-2xl font-bold tracking-tight text-white"
                 >
-                    Sign in to your account
+                    Create a new account
                 </h1>
                 <p class="mt-2 text-center text-sm text-gray-200">
                     Or
                     <NuxtLink
-                        to="/register"
+                        to="/login"
                         class="font-medium text-primary hover:text-primary-dark underline"
                     >
-                        create a new account
+                        sign in to your account
                     </NuxtLink>
                 </p>
             </div>
@@ -58,7 +58,7 @@
                             variant="solid"
                             class="cursor-pointer"
                         >
-                            Sign in
+                            Sign up
                         </UButton>
                     </div>
                 </form>
@@ -83,7 +83,7 @@ const handleSubmit = async (event) => {
     try {
         error.value = null;
         isLoading.value = true;
-        await fetch(`${config.public.apiBase}/auth/login`, {
+        await fetch(`${config.public.apiBase}/auth/register`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -102,11 +102,10 @@ const handleSubmit = async (event) => {
                 });
             } else {
                 toast.add({
-                    title: "Login Successful",
-                    description: "You have been successfully logged in",
+                    title: "Register Successful",
+                    description: "You have been successfully signed up",
                     color: "success",
                 });
-
                 localStorage.setItem("token", body.token);
                 setTimeout(() => {
                     window.location.href = "/play";
