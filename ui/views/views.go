@@ -1,6 +1,7 @@
 package views
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 
@@ -60,10 +61,16 @@ func NewRahannaModel() RahannaModel {
 	auth := NewAuthModel(width, height)
 	play := NewPlayModel(width, height)
 
+	var currentModel tea.Model = auth
+
+	if _, err := os.Stat(".rahannarc"); !errors.Is(err, os.ErrNotExist) {
+		currentModel = play
+	}
+
 	return RahannaModel{
 		width:        width,
 		height:       height,
-		currentModel: auth,
+		currentModel: currentModel,
 		auth:         auth,
 		play:         play,
 	}
