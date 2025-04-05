@@ -3,6 +3,7 @@ package views
 import (
 	"errors"
 	"os"
+
 	"os/exec"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,6 +18,14 @@ var logo = `
 ▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌▐▌  ▐▌▐▌  ▐▌▐▌ ▐▌
 `
 
+var (
+	highlightColor = lipgloss.Color("#7ee2a8")
+	errorStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff0000"))
+	altCodeStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#666666")).Bold(true)
+	windowStyle    = lipgloss.NewStyle().BorderForeground(highlightColor).Padding(2, 0).Align(lipgloss.Center).Border(lipgloss.RoundedBorder())
+	inputStyle     = lipgloss.NewStyle().Foreground(highlightColor)
+)
+
 // Get terminal size dynamically
 func GetTerminalSize() (width, height int) {
 	fd := int(os.Stdin.Fd())
@@ -28,12 +37,14 @@ func GetTerminalSize() (width, height int) {
 
 // Clear terminal screen
 func ClearScreen() {
-	cmd := exec.Command("clear") // Unix (Linux/macOS)
-	if os.Getenv("OS") == "Windows_NT" {
-		cmd = exec.Command("cmd", "/c", "cls") // Windows
+	if len(os.Getenv("DEBUG")) == 0 {
+		cmd := exec.Command("clear")
+		if os.Getenv("OS") == "Windows_NT" {
+			cmd = exec.Command("cmd", "/c", "cls")
+		}
+		cmd.Stdout = os.Stdout
+		cmd.Run()
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Run()
 }
 
 func getFormWidth(width int) int {
@@ -98,11 +109,6 @@ func (m RahannaModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case switchModel:
 		m.currentModel = msg.model
-		return m, nil
-
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
 		return m, nil
 	}
 	var cmd tea.Cmd

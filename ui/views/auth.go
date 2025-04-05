@@ -63,8 +63,6 @@ func NewAuthModel(width, height int) AuthModel {
 
 // Initialize loginModel
 func initLoginModel(width, height int) loginModel {
-	inputStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#7EE2A8"))
-
 	username := textinput.New()
 	username.Prompt = " "
 	username.TextStyle = inputStyle
@@ -150,6 +148,11 @@ func (m AuthModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "alt+1":
@@ -481,11 +484,6 @@ func (m loginModel) renderContent() string {
 		Align(lipgloss.Center).
 		Width(formWidth - 4) // Account for padding
 
-	errorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#ff0000")).
-		Align(lipgloss.Center).
-		Width(formWidth - 4) // Account for padding
-
 	statusStyle := lipgloss.NewStyle().
 		Align(lipgloss.Center).
 		Bold(true).
@@ -506,7 +504,7 @@ func (m loginModel) renderContent() string {
 	form := lipgloss.JoinVertical(lipgloss.Center,
 		titleStyle.Render("Sign in to your account"),
 		"\n",
-		errorStyle.Render(formError),
+		errorStyle.Align(lipgloss.Center).Width(formWidth-4).Render(formError),
 		inputWrapStyle.Render(
 			lipgloss.JoinHorizontal(lipgloss.Left,
 				labelStyle.Render("Username:"),
@@ -545,11 +543,6 @@ func (m signupModel) renderContent() string {
 		Align(lipgloss.Center).
 		Width(formWidth - 4) // Account for padding
 
-	errorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#ff0000")).
-		Align(lipgloss.Center).
-		Width(formWidth - 4) // Account for padding
-
 	statusStyle := lipgloss.NewStyle().
 		Align(lipgloss.Center).
 		Bold(true).
@@ -570,7 +563,7 @@ func (m signupModel) renderContent() string {
 	form := lipgloss.JoinVertical(lipgloss.Center,
 		titleStyle.Render("Create a new account"),
 		"\n",
-		errorStyle.Render(formError),
+		errorStyle.Align(lipgloss.Center).Width(formWidth-4).Render(formError),
 		inputWrapStyle.Render(
 			lipgloss.JoinHorizontal(lipgloss.Left,
 				labelStyle.Render("Username:"),

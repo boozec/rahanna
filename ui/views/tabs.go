@@ -6,17 +6,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// TabType represents the available tabs
-
 type TabType int
 
 var (
-	highlightColor   = lipgloss.Color("#7ee2a8")
 	tabStyle         = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(highlightColor).Padding(0, 2)
 	inactiveTabStyle = tabStyle
 	activeTabStyle   = tabStyle
-	altCodeStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#666666")).Bold(true)
-	windowStyle      = lipgloss.NewStyle().BorderForeground(highlightColor).Padding(2, 0).Align(lipgloss.Center).Border(lipgloss.RoundedBorder())
 )
 
 func getTabsRow(tabsText []string, activeTab TabType) string {
