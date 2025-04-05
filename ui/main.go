@@ -9,7 +9,9 @@ import (
 
 func main() {
 	views.ClearScreen()
-	p := tea.NewProgram(views.NewAuthModel(), tea.WithAltScreen())
+
+	p := tea.NewProgram(views.NewRahannaModel(), tea.WithAltScreen())
+
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}

@@ -4,6 +4,8 @@ import (
 	"os"
 	"os/exec"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
 )
 
@@ -42,4 +44,88 @@ func getFormWidth(width int) int {
 	}
 
 	return formWidth
+}
+
+type RahannaModel struct {
+	width        int
+	height       int
+	currentModel tea.Model
+	auth         AuthModel
+	play         PlayModel
+}
+
+func NewRahannaModel() RahannaModel {
+	width, height := GetTerminalSize()
+
+	auth := NewAuthModel(width, height)
+	play := NewPlayModel(width, height)
+
+	return RahannaModel{
+		width:        width,
+		height:       height,
+		currentModel: auth,
+		auth:         auth,
+		play:         play,
+	}
+}
+
+func (m RahannaModel) Init() tea.Cmd {
+	return m.currentModel.Init()
+}
+
+type switchModel struct {
+	model tea.Model
+}
+
+func SwitchModelCmd(model tea.Model) tea.Cmd {
+	s := switchModel{
+		model: model,
+	}
+
+	return func() tea.Msg {
+		return s
+	}
+}
+
+func (m RahannaModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case switchModel:
+		m.currentModel = msg.model
+		return m, nil
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.currentModel, cmd = m.currentModel.Update(msg)
+	return m, cmd
+}
+
+func (m RahannaModel) View() string {
+	return m.currentModel.View()
+}
+
+func handleExit(msg tea.Msg) tea.Cmd {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c":
+			return tea.Quit
+		}
+	}
+
+	return nil
+}
+
+func getLogo(width int) string {
+	logoStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#7ee2a8")).
+		Bold(true).
+		Align(lipgloss.Center).
+		Width(width)
+
+	return logoStyle.Render(logo)
+
 }

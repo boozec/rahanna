@@ -51,9 +51,7 @@ type authResponse struct {
 }
 
 // Initialize AuthModel which contains both tabs
-func NewAuthModel() AuthModel {
-	width, height := GetTerminalSize()
-
+func NewAuthModel(width, height int) AuthModel {
 	return AuthModel{
 		loginModel:  initLoginModel(width, height),
 		signupModel: initSignupModel(width, height),
@@ -147,13 +145,11 @@ func (m AuthModel) Init() tea.Cmd {
 func (m AuthModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width, m.height = msg.Width, msg.Height
-		m.loginModel.width, m.loginModel.height = msg.Width, msg.Height
-		m.signupModel.width, m.signupModel.height = msg.Width, msg.Height
-		return m, nil
+	if exit := handleExit(msg); exit != nil {
+		return m, exit
+	}
 
+	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "alt+1":
@@ -182,8 +178,6 @@ func (m AuthModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
-		case "ctrl+c":
-			return m, tea.Quit
 		}
 	}
 
@@ -218,13 +212,6 @@ func (m AuthModel) View() string {
 		windowStyle.Width(getFormWidth(width)).Render(tabContent),
 	)
 
-	// Logo style
-	logoStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#7ee2a8")).
-		Bold(true).
-		Align(lipgloss.Center).
-		Width(width)
-
 	// Center logo and form in available space
 	contentHeight := lipgloss.Height(logo) + lipgloss.Height(ui) + 2
 	paddingTop := (height - contentHeight) / 2
@@ -237,7 +224,7 @@ func (m AuthModel) View() string {
 		MarginTop(paddingTop).
 		Render(
 			lipgloss.JoinVertical(lipgloss.Center,
-				logoStyle.Render(logo),
+				getLogo(m.width),
 				lipgloss.PlaceHorizontal(width, lipgloss.Center, ui),
 			),
 		)
@@ -284,7 +271,7 @@ func (m loginModel) Update(msg tea.Msg) (loginModel, tea.Cmd) {
 			}
 			defer f.Close()
 			f.Write([]byte(m.token))
-			return m, tea.Quit
+			return m, SwitchModelCmd(NewPlayModel(m.width, m.height))
 		}
 	case error:
 		m.isLoading = false
@@ -339,7 +326,7 @@ func (m signupModel) Update(msg tea.Msg) (signupModel, tea.Cmd) {
 			}
 			defer f.Close()
 			f.Write([]byte(m.token))
-			return m, tea.Quit
+			return m, SwitchModelCmd(NewPlayModel(m.width, m.height))
 		}
 	case error:
 		m.isLoading = false
