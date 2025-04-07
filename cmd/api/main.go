@@ -19,6 +19,7 @@ func main() {
 	r.HandleFunc("/auth/register", handlers.RegisterUser).Methods(http.MethodPost)
 	r.HandleFunc("/auth/login", handlers.LoginUser).Methods(http.MethodPost)
 	r.Handle("/play", middleware.AuthMiddleware(http.HandlerFunc(handlers.NewPlay))).Methods(http.MethodPost)
+	r.Handle("/enter-play", middleware.AuthMiddleware(http.HandlerFunc(handlers.EnterPlay))).Methods(http.MethodPost)
 
 	slog.Info("Serving on :8080")
 	handler := cors.AllowAll().Handler(r)

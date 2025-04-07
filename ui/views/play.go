@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
 
+	"github.com/boozec/rahanna/api/database"
 	"github.com/boozec/rahanna/network"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -79,6 +79,7 @@ type PlayModel struct {
 	page       PlayModelPage
 	isLoading  bool
 	playName   string
+	play       *database.Play
 }
 
 func NewPlayModel(width, height int) PlayModel {
@@ -99,6 +100,7 @@ func NewPlayModel(width, height int) PlayModel {
 		page:       LandingPage,
 		isLoading:  false,
 		playName:   "",
+		play:       nil,
 	}
 }
 
@@ -130,25 +132,33 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.newPlayCallback()
 			}
 		case key.Matches(msg, m.keys.GoLogout):
-			if err := os.Remove(".rahannarc"); err != nil {
-				m.err = err
-				return m, nil
-			}
-			return m, SwitchModelCmd(NewAuthModel(m.width, m.height+1))
+			return m, m.logout()
 		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
 		case msg.Type == tea.KeyEnter:
 			if m.page == InsertCodePage {
-				m.err = errors.New("Can't join for now...")
+				if !m.isLoading {
+					m.isLoading = true
+					return m, m.enterPlay()
+				}
 			}
 		}
 	case playResponse:
 		m.isLoading = false
+		m.err = nil
 		if msg.Error != "" {
 			m.err = fmt.Errorf(msg.Error)
+			if msg.Error == "unauthorized" {
+				return m, m.logout()
+			}
 		} else {
 			m.playName = msg.Name
 		}
+		return m, nil
+	case database.Play:
+		m.isLoading = false
+		m.play = &msg
+		m.err = nil
 		return m, nil
 	case error:
 		m.isLoading = false
@@ -167,13 +177,8 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m PlayModel) View() string {
 	formWidth := getFormWidth(m.width)
 
-	// Error message
-	formError := ""
-	if m.err != nil {
-		formError = fmt.Sprintf("Error: %v", m.err.Error())
-	}
-
 	var content string
+	base := lipgloss.NewStyle().Align(lipgloss.Center).Width(m.width)
 
 	switch m.page {
 	case LandingPage:
@@ -181,50 +186,75 @@ func (m PlayModel) View() string {
 		m.namePrompt.Blur()
 	case InsertCodePage:
 		m.namePrompt.Focus()
-		content = m.namePrompt.View()
-
-		statusMsg := fmt.Sprintf("Press %s to join", lipgloss.NewStyle().Italic(true).Render("Enter"))
+		var statusMsg string
 		if m.isLoading {
 			statusMsg = "Loading..."
-		}
-
-		content = lipgloss.NewStyle().
-			Align(lipgloss.Center).
-			Width(m.width).
-			Render(
-				lipgloss.JoinVertical(lipgloss.Left,
-					lipgloss.NewStyle().Width(23).Render("Insert play code:"),
-					m.namePrompt.View(),
+			content = base.
+				Render(
 					lipgloss.NewStyle().
 						Align(lipgloss.Center).
-						PaddingTop(2).
-						Width(23).
 						Bold(true).
 						Render(statusMsg),
-				),
-			)
-	case StartPlayPage:
-		statusMsg := fmt.Sprintf("Share `%s` to your friend", lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color("#F39C12")).Render(m.playName))
-		if m.isLoading {
-			statusMsg = "Loading..."
+				)
+		} else if m.play != nil {
+			statusMsg = fmt.Sprintf("You are playing versus %s", lipgloss.NewStyle().Foreground(lipgloss.Color("#e67e22")).Render(m.play.Player1.Username))
+			content = base.
+				Render(
+					lipgloss.NewStyle().
+						Align(lipgloss.Center).
+						Width(m.width).
+						Bold(true).
+						Render(statusMsg),
+				)
+		} else {
+			statusMsg = fmt.Sprintf("Press %s to join", lipgloss.NewStyle().Italic(true).Render("Enter"))
+			content = base.
+				Render(
+					lipgloss.JoinVertical(lipgloss.Left,
+						lipgloss.NewStyle().Width(23).Render("Insert play code:"),
+						m.namePrompt.View(),
+						lipgloss.NewStyle().
+							Align(lipgloss.Center).
+							PaddingTop(2).
+							Width(23).
+							Bold(true).
+							Render(statusMsg),
+					),
+				)
 		}
 
-		content = lipgloss.NewStyle().
-			Align(lipgloss.Center).
-			Width(m.width).
+	case StartPlayPage:
+		var statusMsg string
+		if m.isLoading {
+			statusMsg = "Loading..."
+		} else if m.playName != "" {
+			statusMsg = fmt.Sprintf("Share `%s` to your friend", lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color("#F39C12")).Render(m.playName))
+		}
+
+		content = base.
 			Render(statusMsg)
 	}
 
-	windowContent := lipgloss.JoinVertical(
-		lipgloss.Center,
-		windowStyle.
-			Width(formWidth).
-			Render(lipgloss.JoinVertical(
+	var windowContent string
+	if m.err != nil {
+		formError := fmt.Sprintf("Error: %v", m.err.Error())
+		windowContent = lipgloss.JoinVertical(
+			lipgloss.Center,
+			windowStyle.Width(formWidth).Render(lipgloss.JoinVertical(
 				lipgloss.Center,
 				errorStyle.Align(lipgloss.Center).Width(formWidth-4).Render(formError),
 				content,
 			)),
-	)
+		)
+	} else {
+		windowContent = lipgloss.JoinVertical(
+			lipgloss.Center,
+			windowStyle.Width(formWidth).Render(lipgloss.JoinVertical(
+				lipgloss.Center,
+				content,
+			)),
+		)
+	}
 
 	enterKey := fmt.Sprintf("%s %s", altCodeStyle.Render(m.keys.EnterNewPlay.Help().Key), m.keys.EnterNewPlay.Help().Desc)
 	startKey := fmt.Sprintf("%s %s", altCodeStyle.Render(m.keys.StartNewPlay.Help().Key), m.keys.StartNewPlay.Help().Desc)
@@ -276,8 +306,13 @@ func (m PlayModel) newPlayCallback() tea.Cmd {
 
 		url := os.Getenv("API_BASE") + "/play"
 
+		port, err := network.GetRandomAvailablePort()
+		if err != nil {
+			return playResponse{Error: err.Error()}
+		}
+
 		payload, err := json.Marshal(map[string]string{
-			"ip": network.GetOutboundIP().String(),
+			"ip": fmt.Sprintf("%s:%d", network.GetOutboundIP().String(), port),
 		})
 
 		if err != nil {
@@ -315,4 +350,78 @@ func (m PlayModel) newPlayCallback() tea.Cmd {
 
 		return response
 	}
+}
+
+func (m PlayModel) enterPlay() tea.Cmd {
+	return func() tea.Msg {
+		f, err := os.Open(".rahannarc")
+		if err != nil {
+			return playResponse{Error: err.Error()}
+		}
+		defer f.Close()
+
+		scanner := bufio.NewScanner(f)
+		var authorization string
+		for scanner.Scan() {
+			authorization = scanner.Text()
+		}
+
+		if err := scanner.Err(); err != nil {
+			fmt.Println("Error during scanning:", err)
+		}
+
+		url := os.Getenv("API_BASE") + "/enter-play"
+
+		port, err := network.GetRandomAvailablePort()
+		if err != nil {
+			return playResponse{Error: err.Error()}
+		}
+
+		payload, err := json.Marshal(map[string]string{
+			"ip":   fmt.Sprintf("%s:%d", network.GetOutboundIP().String(), port),
+			"name": m.namePrompt.Value(),
+		})
+
+		if err != nil {
+			return playResponse{Error: err.Error()}
+		}
+
+		req, err := http.NewRequest("POST", url, bytes.NewReader(payload))
+		if err != nil {
+			return playResponse{Error: err.Error()}
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", authorization))
+
+		client := &http.Client{}
+
+		resp, err := client.Do(req)
+
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			var response playResponse
+			err = json.NewDecoder(resp.Body).Decode(&response)
+			if err != nil {
+				return playResponse{Error: fmt.Sprintf("HTTP error: %d, unable to decode body", resp.StatusCode)}
+			}
+			return playResponse{Error: response.Error}
+		}
+
+		var response database.Play
+		err = json.NewDecoder(resp.Body).Decode(&response)
+		if err != nil {
+			return playResponse{Error: fmt.Sprintf("Error decoding JSON: %v", err)}
+		}
+
+		return response
+	}
+}
+
+func (m PlayModel) logout() tea.Cmd {
+	if err := os.Remove(".rahannarc"); err != nil {
+		return nil
+	}
+	return SwitchModelCmd(NewAuthModel(m.width, m.height+1))
 }

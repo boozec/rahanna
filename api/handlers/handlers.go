@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/boozec/rahanna/api/auth"
 	"github.com/boozec/rahanna/api/database"
 	utils "github.com/boozec/rahanna/pkg"
 	"github.com/boozec/rahanna/relay"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type NewPlayRequest struct {
@@ -135,4 +137,64 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(map[string]string{"name": name})
+}
+
+func EnterPlay(w http.ResponseWriter, r *http.Request) {
+	slog.Info("POST /enter-play")
+	claims, err := auth.ValidateJWT(r.Header.Get("Authorization"))
+
+	if err != nil {
+		utils.JsonError(&w, err.Error())
+		return
+	}
+
+	var payload struct {
+		Name string `json:"name"`
+		IP   string `json:"ip"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.JsonError(&w, err.Error())
+		return
+	}
+
+	if err != nil {
+		utils.JsonError(&w, err.Error())
+		return
+	}
+
+	db, _ := database.GetDb()
+
+	var play database.Play
+
+	result := db.Where("name = ? AND player2_id IS NULL", payload.Name).First(&play)
+	if result.Error != nil {
+		utils.JsonError(&w, result.Error.Error())
+		return
+	}
+
+	play.Player2ID = &claims.UserID
+	play.IP2 = payload.IP
+	play.UpdatedAt = time.Now()
+
+	if err := db.Save(&play).Error; err != nil {
+		utils.JsonError(&w, err.Error())
+		return
+	}
+
+	result = db.Where("id = ?", play.ID).
+		Preload("Player1", func(db *gorm.DB) *gorm.DB {
+			return db.Omit("Password")
+		}).
+		Preload("Player2", func(db *gorm.DB) *gorm.DB {
+			return db.Omit("Password")
+		}).
+		First(&play)
+
+	if result.Error != nil {
+		utils.JsonError(&w, result.Error.Error())
+		return
+	}
+
+	json.NewEncoder(w).Encode(play)
 }
