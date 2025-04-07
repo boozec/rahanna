@@ -16,7 +16,7 @@ var nouns = []string{
 	"crab", "cuckoo", "cymbal", "diplodocus", "donkey",
 }
 
-func newSession() string {
+func NewSession() string {
 	noun := nouns[rand.Intn(len(nouns))]
 	adjective := adjectives[rand.Intn(len(adjectives))]
 	return noun + "-" + adjective

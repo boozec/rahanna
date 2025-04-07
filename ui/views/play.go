@@ -1,10 +1,15 @@
 package views
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 
+	"github.com/boozec/rahanna/network"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -31,6 +36,11 @@ type playKeyMap struct {
 	StartNewPlay key.Binding
 	GoLogout     key.Binding
 	Quit         key.Binding
+}
+
+type playResponse struct {
+	Name  string `json:"name"`
+	Error string `json:"error"`
 }
 
 var defaultPlayKeyMap = playKeyMap{
@@ -68,6 +78,7 @@ type PlayModel struct {
 	namePrompt textinput.Model
 	page       PlayModelPage
 	isLoading  bool
+	playName   string
 }
 
 func NewPlayModel(width, height int) PlayModel {
@@ -87,6 +98,7 @@ func NewPlayModel(width, height int) PlayModel {
 		namePrompt: namePrompt,
 		page:       LandingPage,
 		isLoading:  false,
+		playName:   "",
 	}
 }
 
@@ -112,8 +124,11 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.page = InsertCodePage
 			return m, nil
 		case key.Matches(msg, m.keys.StartNewPlay):
-			// TODO: handle new play
-			return m, nil
+			m.page = StartPlayPage
+			if !m.isLoading {
+				m.isLoading = true
+				return m, m.newPlayCallback()
+			}
 		case key.Matches(msg, m.keys.GoLogout):
 			if err := os.Remove(".rahannarc"); err != nil {
 				m.err = err
@@ -127,6 +142,17 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.err = errors.New("Can't join for now...")
 			}
 		}
+	case playResponse:
+		m.isLoading = false
+		if msg.Error != "" {
+			m.err = fmt.Errorf(msg.Error)
+		} else {
+			m.playName = msg.Name
+		}
+		return m, nil
+	case error:
+		m.isLoading = false
+		m.err = msg
 	}
 
 	var cmd tea.Cmd = nil
@@ -147,12 +173,6 @@ func (m PlayModel) View() string {
 		formError = fmt.Sprintf("Error: %v", m.err.Error())
 	}
 
-	// Status message
-	statusMsg := fmt.Sprintf("Press %s to join", lipgloss.NewStyle().Italic(true).Render("Enter"))
-	if m.isLoading {
-		statusMsg = "Creating account..."
-	}
-
 	var content string
 
 	switch m.page {
@@ -162,6 +182,11 @@ func (m PlayModel) View() string {
 	case InsertCodePage:
 		m.namePrompt.Focus()
 		content = m.namePrompt.View()
+
+		statusMsg := fmt.Sprintf("Press %s to join", lipgloss.NewStyle().Italic(true).Render("Enter"))
+		if m.isLoading {
+			statusMsg = "Loading..."
+		}
 
 		content = lipgloss.NewStyle().
 			Align(lipgloss.Center).
@@ -178,6 +203,16 @@ func (m PlayModel) View() string {
 						Render(statusMsg),
 				),
 			)
+	case StartPlayPage:
+		statusMsg := fmt.Sprintf("Share `%s` to your friend", lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color("#F39C12")).Render(m.playName))
+		if m.isLoading {
+			statusMsg = "Loading..."
+		}
+
+		content = lipgloss.NewStyle().
+			Align(lipgloss.Center).
+			Width(m.width).
+			Render(statusMsg)
 	}
 
 	windowContent := lipgloss.JoinVertical(
@@ -219,4 +254,65 @@ func (m PlayModel) View() string {
 		lipgloss.Center,
 		centeredContent,
 	)
+}
+
+func (m PlayModel) newPlayCallback() tea.Cmd {
+	return func() tea.Msg {
+		f, err := os.Open(".rahannarc")
+		if err != nil {
+			return playResponse{Error: err.Error()}
+		}
+		defer f.Close()
+
+		scanner := bufio.NewScanner(f)
+		var authorization string
+		for scanner.Scan() {
+			authorization = scanner.Text()
+		}
+
+		if err := scanner.Err(); err != nil {
+			fmt.Println("Error during scanning:", err)
+		}
+
+		url := os.Getenv("API_BASE") + "/play"
+
+		payload, err := json.Marshal(map[string]string{
+			"ip": network.GetOutboundIP().String(),
+		})
+
+		if err != nil {
+			return playResponse{Error: err.Error()}
+		}
+
+		req, err := http.NewRequest("POST", url, bytes.NewReader(payload))
+		if err != nil {
+			return playResponse{Error: err.Error()}
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", authorization))
+
+		client := &http.Client{}
+
+		resp, err := client.Do(req)
+
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			var response playResponse
+			err = json.NewDecoder(resp.Body).Decode(&response)
+			if err != nil {
+				return playResponse{Error: fmt.Sprintf("HTTP error: %d, unable to decode body", resp.StatusCode)}
+			}
+			return playResponse{Error: response.Error}
+		}
+
+		var response playResponse
+		err = json.NewDecoder(resp.Body).Decode(&response)
+		if err != nil {
+			return playResponse{Error: fmt.Sprintf("Error decoding JSON: %v", err)}
+		}
+
+		return response
+	}
 }

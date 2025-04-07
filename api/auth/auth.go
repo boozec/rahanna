@@ -1,9 +1,12 @@
 package auth
 
 import (
-	"github.com/golang-jwt/jwt/v5"
+	"errors"
 	"os"
+	"strings"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 var jwtKey = []byte(os.Getenv("JWT_SECRET"))
@@ -32,7 +35,13 @@ func GenerateJWT(userID int) (string, error) {
 
 func ValidateJWT(tokenString string) (*Claims, error) {
 	claims := &Claims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+	// A token has a form `Bearer ...`
+	tokenParts := strings.Split(tokenString, " ")
+	if len(tokenParts) != 2 {
+		return nil, errors.New("not valid JWT")
+	}
+
+	token, err := jwt.ParseWithClaims(tokenParts[1], claims, func(token *jwt.Token) (interface{}, error) {
 		return jwtKey, nil
 	})
 

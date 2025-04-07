@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"go.uber.org/zap"
+	"log/slog"
 	"net"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 var logger *zap.Logger
@@ -209,4 +211,16 @@ func (n *TCPNetwork) IsConnected() bool {
 	n.Lock()
 	defer n.Unlock()
 	return n.isConnected
+}
+
+func GetOutboundIP() net.IP {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		slog.Error("err", err)
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return localAddr.IP
 }

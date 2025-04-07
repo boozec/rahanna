@@ -33,12 +33,12 @@ func (s *Server) RegisterName(ctx context.Context, in *pb.RelayRequest) (*pb.Rel
 		return nil, fmt.Errorf("IP address cannot be empty")
 	}
 
-	sessionName := newSession()
+	sessionName := NewSession()
 	for {
 		if _, ok := table[name(sessionName)]; !ok {
 			break
 		}
-		sessionName = newSession()
+		sessionName = NewSession()
 	}
 
 	table[name(sessionName)] = ips{ip0: in.Ip, ip1: ""}

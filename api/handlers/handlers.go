@@ -8,11 +8,16 @@ import (
 	"github.com/boozec/rahanna/api/auth"
 	"github.com/boozec/rahanna/api/database"
 	utils "github.com/boozec/rahanna/pkg"
+	"github.com/boozec/rahanna/relay"
 	"golang.org/x/crypto/bcrypt"
 )
 
+type NewPlayRequest struct {
+	IP string `json:"ip"`
+}
+
 func RegisterUser(w http.ResponseWriter, r *http.Request) {
-	slog.Info("POST /register")
+	slog.Info("POST /auth/register")
 	var user database.User
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
@@ -57,7 +62,7 @@ func RegisterUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func LoginUser(w http.ResponseWriter, r *http.Request) {
-	slog.Info("POST /login")
+	slog.Info("POST /auth/login")
 	var inputUser database.User
 	err := json.NewDecoder(r.Body).Decode(&inputUser)
 	if err != nil {
@@ -87,4 +92,47 @@ func LoginUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(map[string]string{"token": token})
+}
+
+func NewPlay(w http.ResponseWriter, r *http.Request) {
+	slog.Info("POST /play")
+	claims, err := auth.ValidateJWT(r.Header.Get("Authorization"))
+
+	if err != nil {
+		utils.JsonError(&w, err.Error())
+		return
+	}
+
+	var payload struct {
+		IP string `json:"ip"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.JsonError(&w, err.Error())
+		return
+	}
+
+	if err != nil {
+		utils.JsonError(&w, err.Error())
+		return
+	}
+
+	db, _ := database.GetDb()
+
+	name := relay.NewSession()
+	play := database.Play{
+		Player1ID: claims.UserID,
+		Player2ID: nil,
+		Name:      name,
+		IP1:       payload.IP,
+		IP2:       "",
+	}
+
+	result := db.Create(&play)
+	if result.Error != nil {
+		utils.JsonError(&w, result.Error.Error())
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{"name": name})
 }

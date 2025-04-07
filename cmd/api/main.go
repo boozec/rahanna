@@ -7,6 +7,7 @@ import (
 
 	"github.com/boozec/rahanna/api/database"
 	"github.com/boozec/rahanna/api/handlers"
+	"github.com/boozec/rahanna/api/middleware"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 )
@@ -17,6 +18,7 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/auth/register", handlers.RegisterUser).Methods(http.MethodPost)
 	r.HandleFunc("/auth/login", handlers.LoginUser).Methods(http.MethodPost)
+	r.Handle("/play", middleware.AuthMiddleware(http.HandlerFunc(handlers.NewPlay))).Methods(http.MethodPost)
 
 	slog.Info("Serving on :8080")
 	handler := cors.AllowAll().Handler(r)
