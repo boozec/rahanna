@@ -1,4 +1,4 @@
-package relay
+package network
 
 import (
 	"math/rand"

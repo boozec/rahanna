@@ -10,7 +10,7 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-type Play struct {
+type Game struct {
 	ID        int       `json:"id"`
 	Player1ID int       `json:"-"`
 	Player1   User      `gorm:"foreignKey:Player1ID" json:"player1"`

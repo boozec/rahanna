@@ -32,8 +32,8 @@ var chess string = `
 `
 
 type playKeyMap struct {
-	EnterNewPlay key.Binding
-	StartNewPlay key.Binding
+	EnterNewGame key.Binding
+	StartNewGame key.Binding
 	GoLogout     key.Binding
 	Quit         key.Binding
 }
@@ -43,12 +43,12 @@ type playResponse struct {
 	Error string `json:"error"`
 }
 
-var defaultPlayKeyMap = playKeyMap{
-	EnterNewPlay: key.NewBinding(
+var defaultGameKeyMap = playKeyMap{
+	EnterNewGame: key.NewBinding(
 		key.WithKeys("alt+E", "alt+e"),
 		key.WithHelp("Alt+E", "Enter a play using code"),
 	),
-	StartNewPlay: key.NewBinding(
+	StartNewGame: key.NewBinding(
 		key.WithKeys("alt+s", "alt+s"),
 		key.WithHelp("Alt+S", "Start a new play"),
 	),
@@ -67,7 +67,7 @@ type PlayModelPage int
 const (
 	LandingPage PlayModelPage = iota
 	InsertCodePage
-	StartPlayPage
+	StartGamePage
 )
 
 type PlayModel struct {
@@ -79,7 +79,7 @@ type PlayModel struct {
 	page       PlayModelPage
 	isLoading  bool
 	playName   string
-	play       *database.Play
+	play       *database.Game
 }
 
 func NewPlayModel(width, height int) PlayModel {
@@ -95,7 +95,7 @@ func NewPlayModel(width, height int) PlayModel {
 		width:      width,
 		height:     height,
 		err:        nil,
-		keys:       defaultPlayKeyMap,
+		keys:       defaultGameKeyMap,
 		namePrompt: namePrompt,
 		page:       LandingPage,
 		isLoading:  false,
@@ -122,14 +122,14 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, m.keys.EnterNewPlay):
+		case key.Matches(msg, m.keys.EnterNewGame):
 			m.page = InsertCodePage
 			return m, nil
-		case key.Matches(msg, m.keys.StartNewPlay):
-			m.page = StartPlayPage
+		case key.Matches(msg, m.keys.StartNewGame):
+			m.page = StartGamePage
 			if !m.isLoading {
 				m.isLoading = true
-				return m, m.newPlayCallback()
+				return m, m.newGameCallback()
 			}
 		case key.Matches(msg, m.keys.GoLogout):
 			return m, m.logout()
@@ -139,7 +139,7 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.page == InsertCodePage {
 				if !m.isLoading {
 					m.isLoading = true
-					return m, m.enterPlay()
+					return m, m.enterGame()
 				}
 			}
 		}
@@ -155,7 +155,7 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.playName = msg.Name
 		}
 		return m, nil
-	case database.Play:
+	case database.Game:
 		m.isLoading = false
 		m.play = &msg
 		m.err = nil
@@ -223,7 +223,7 @@ func (m PlayModel) View() string {
 				)
 		}
 
-	case StartPlayPage:
+	case StartGamePage:
 		var statusMsg string
 		if m.isLoading {
 			statusMsg = "Loading..."
@@ -256,8 +256,8 @@ func (m PlayModel) View() string {
 		)
 	}
 
-	enterKey := fmt.Sprintf("%s %s", altCodeStyle.Render(m.keys.EnterNewPlay.Help().Key), m.keys.EnterNewPlay.Help().Desc)
-	startKey := fmt.Sprintf("%s %s", altCodeStyle.Render(m.keys.StartNewPlay.Help().Key), m.keys.StartNewPlay.Help().Desc)
+	enterKey := fmt.Sprintf("%s %s", altCodeStyle.Render(m.keys.EnterNewGame.Help().Key), m.keys.EnterNewGame.Help().Desc)
+	startKey := fmt.Sprintf("%s %s", altCodeStyle.Render(m.keys.StartNewGame.Help().Key), m.keys.StartNewGame.Help().Desc)
 	logoutKey := fmt.Sprintf("%s %s", altCodeStyle.Render(m.keys.GoLogout.Help().Key), m.keys.GoLogout.Help().Desc)
 	quitKey := fmt.Sprintf("%s %s", altCodeStyle.Render(m.keys.Quit.Help().Key), m.keys.Quit.Help().Desc)
 
@@ -286,7 +286,7 @@ func (m PlayModel) View() string {
 	)
 }
 
-func (m PlayModel) newPlayCallback() tea.Cmd {
+func (m PlayModel) newGameCallback() tea.Cmd {
 	return func() tea.Msg {
 		f, err := os.Open(".rahannarc")
 		if err != nil {
@@ -352,7 +352,7 @@ func (m PlayModel) newPlayCallback() tea.Cmd {
 	}
 }
 
-func (m PlayModel) enterPlay() tea.Cmd {
+func (m PlayModel) enterGame() tea.Cmd {
 	return func() tea.Msg {
 		f, err := os.Open(".rahannarc")
 		if err != nil {
@@ -370,7 +370,7 @@ func (m PlayModel) enterPlay() tea.Cmd {
 			fmt.Println("Error during scanning:", err)
 		}
 
-		url := os.Getenv("API_BASE") + "/enter-play"
+		url := os.Getenv("API_BASE") + "/enter-game"
 
 		port, err := network.GetRandomAvailablePort()
 		if err != nil {
@@ -409,7 +409,7 @@ func (m PlayModel) enterPlay() tea.Cmd {
 			return playResponse{Error: response.Error}
 		}
 
-		var response database.Play
+		var response database.Game
 		err = json.NewDecoder(resp.Body).Decode(&response)
 		if err != nil {
 			return playResponse{Error: fmt.Sprintf("Error decoding JSON: %v", err)}

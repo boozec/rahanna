@@ -8,13 +8,13 @@ import (
 
 	"github.com/boozec/rahanna/api/auth"
 	"github.com/boozec/rahanna/api/database"
+	"github.com/boozec/rahanna/network"
 	utils "github.com/boozec/rahanna/pkg"
-	"github.com/boozec/rahanna/relay"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
-type NewPlayRequest struct {
+type NewGameRequest struct {
 	IP string `json:"ip"`
 }
 
@@ -121,8 +121,8 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 
 	db, _ := database.GetDb()
 
-	name := relay.NewSession()
-	play := database.Play{
+	name := network.NewSession()
+	play := database.Game{
 		Player1ID: claims.UserID,
 		Player2ID: nil,
 		Name:      name,
@@ -139,8 +139,8 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"name": name})
 }
 
-func EnterPlay(w http.ResponseWriter, r *http.Request) {
-	slog.Info("POST /enter-play")
+func EnterGame(w http.ResponseWriter, r *http.Request) {
+	slog.Info("POST /enter-game")
 	claims, err := auth.ValidateJWT(r.Header.Get("Authorization"))
 
 	if err != nil {
@@ -165,7 +165,7 @@ func EnterPlay(w http.ResponseWriter, r *http.Request) {
 
 	db, _ := database.GetDb()
 
-	var play database.Play
+	var play database.Game
 
 	result := db.Where("name = ? AND player2_id IS NULL", payload.Name).First(&play)
 	if result.Error != nil {
