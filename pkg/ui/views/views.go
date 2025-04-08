@@ -142,3 +142,10 @@ func getLogo(width int) string {
 	return logoStyle.Render(logo)
 
 }
+
+func logout(width, height int) tea.Cmd {
+	if err := os.Remove(".rahannarc"); err != nil {
+		return nil
+	}
+	return SwitchModelCmd(NewAuthModel(width, height+1))
+}

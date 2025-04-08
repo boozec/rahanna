@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/boozec/rahanna/internal/api/database"
 	"github.com/boozec/rahanna/internal/network"
 	"github.com/boozec/rahanna/pkg/ui/multiplayer"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/paginator"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -19,7 +21,7 @@ import (
 
 const (
 	chessBoard = `
- A B C D E F G H
+  A B C D E F G H
 +---------------+
 8 |♜ ♞ ♝ ♛ ♚ ♝ ♞ ♜| 8
 7 |♟ ♟ ♟ ♟ ♟ ♟ ♟ ♟| 7
@@ -30,11 +32,13 @@ const (
 2 |♙ ♙ ♙ ♙ ♙ ♙ ♙ ♙| 2
 1 |♖ ♘ ♗ ♕ ♔ ♗ ♘ ♖| 1
 +---------------+
- A B C D E F G H
+  A B C D E F G H
 `
 )
 
 type PlayModelPage int
+
+var start = make(chan int)
 
 const (
 	LandingPage PlayModelPage = iota
@@ -60,6 +64,8 @@ type playKeyMap struct {
 	StartNewGame key.Binding
 	GoLogout     key.Binding
 	Quit         key.Binding
+	NextPage     key.Binding
+	PrevPage     key.Binding
 }
 
 // Default key bindings for the play model
@@ -80,6 +86,14 @@ var defaultPlayKeyMap = playKeyMap{
 		key.WithKeys("Q", "q"),
 		key.WithHelp("    Q", "Quit"),
 	),
+	NextPage: key.NewBinding(
+		key.WithKeys("right"),
+		key.WithHelp("→/h", "Next Page"),
+	),
+	PrevPage: key.NewBinding(
+		key.WithKeys("left"),
+		key.WithHelp("←/l", "Prev Page"),
+	),
 }
 
 type PlayModel struct {
@@ -93,51 +107,62 @@ type PlayModel struct {
 	namePrompt textinput.Model
 	page       PlayModelPage
 	isLoading  bool
+	paginator  paginator.Model
 
 	// Game state
 	playName string
-	play     *database.Game
-	network  *multiplayer.PlayNetwork
+	game     *database.Game
+	network  *multiplayer.GameNetwork
+	games    []database.Game // Store the list of games
 }
 
 // NewPlayModel creates a new play model instance
 func NewPlayModel(width, height int) PlayModel {
-	namePrompt := createNamePrompt()
+	namePrompt := createNamePrompt(width)
+	p := paginator.New()
+	p.PerPage = 10
+	p.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "235", Dark: "252"}).Render("•")
+	p.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "250", Dark: "238"}).Render("•")
 
 	return PlayModel{
 		width:      width,
 		height:     height,
-		err:        nil,
 		keys:       defaultPlayKeyMap,
 		namePrompt: namePrompt,
 		page:       LandingPage,
-		isLoading:  false,
-		playName:   "",
-		play:       nil,
+		paginator:  p,
 	}
 }
 
 // Create and configure the name input prompt
-func createNamePrompt() textinput.Model {
+func createNamePrompt(width int) textinput.Model {
 	namePrompt := textinput.New()
 	namePrompt.Prompt = " "
 	namePrompt.TextStyle = inputStyle
 	namePrompt.Placeholder = "rectangular-lake"
 	namePrompt.Focus()
 	namePrompt.CharLimit = 23
-	namePrompt.Width = 23
+	namePrompt.Width = getFormWidth(width)
 
 	return namePrompt
 }
 
 func (m PlayModel) Init() tea.Cmd {
 	ClearScreen()
-	return textinput.Blink
+	return tea.Batch(textinput.Blink, m.fetchGames())
 }
 
 func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if exit := handleExit(msg); exit != nil {
 		return m, exit
+	}
+
+	m.paginator.SetTotalPages(len(m.games))
+
+	select {
+	case <-start:
+		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, m.game, m.network))
+	default:
 	}
 
 	switch msg := msg.(type) {
@@ -149,6 +174,8 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handlePlayResponse(msg)
 	case database.Game:
 		return m.handleGameResponse(msg)
+	case []database.Game:
+		return m.handleGamesResponse(msg)
 	case error:
 		return m.handleError(msg)
 	}
@@ -165,7 +192,7 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m PlayModel) View() string {
 	formWidth := getFormWidth(m.width)
-	base := lipgloss.NewStyle().Align(lipgloss.Center).Width(m.width)
+	base := lipgloss.NewStyle().Align(lipgloss.Center).Width(formWidth)
 
 	content := m.renderPageContent(base)
 
@@ -177,7 +204,7 @@ func (m PlayModel) View() string {
 
 	centeredContent := lipgloss.JoinVertical(
 		lipgloss.Center,
-		getLogo(m.width),
+		getLogo(formWidth),
 		windowContent,
 		lipgloss.NewStyle().MarginTop(2).Render(buttons),
 	)
@@ -211,7 +238,7 @@ func (m PlayModel) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case key.Matches(msg, m.keys.GoLogout):
-		return m, m.logout()
+		return m, logout(m.width, m.height+1)
 
 	case key.Matches(msg, m.keys.Quit):
 		return m, tea.Quit
@@ -223,6 +250,8 @@ func (m PlayModel) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	m.paginator, _ = m.paginator.Update(msg)
+
 	return m, nil
 }
 
@@ -233,11 +262,14 @@ func (m *PlayModel) handlePlayResponse(msg playResponse) (tea.Model, tea.Cmd) {
 	if msg.Error != "" {
 		m.err = fmt.Errorf(msg.Error)
 		if msg.Error == "unauthorized" {
-			return m, m.logout()
+			return m, logout(m.width, m.height+1)
 		}
 	} else {
 		m.playName = msg.Ok.Name
-		m.network = multiplayer.NewPlayNetwork("peer-1", msg.Ok.IP, msg.Ok.Port)
+
+		m.network = multiplayer.NewGameNetwork("peer-1", msg.Ok.IP, msg.Ok.Port, func() {
+			close(start)
+		})
 	}
 
 	return m, nil
@@ -245,7 +277,14 @@ func (m *PlayModel) handlePlayResponse(msg playResponse) (tea.Model, tea.Cmd) {
 
 func (m *PlayModel) handleGameResponse(msg database.Game) (tea.Model, tea.Cmd) {
 	m.isLoading = false
-	m.play = &msg
+	m.game = &msg
+	m.err = nil
+	return m, nil
+}
+
+func (m *PlayModel) handleGamesResponse(msg []database.Game) (tea.Model, tea.Cmd) {
+	m.isLoading = false
+	m.games = msg
 	m.err = nil
 	return m, nil
 }
@@ -256,12 +295,18 @@ func (m *PlayModel) handleError(msg error) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *PlayModel) renderPageContent(base lipgloss.Style) string {
+func (m PlayModel) renderPageContent(base lipgloss.Style) string {
 	switch m.page {
 	case LandingPage:
 		m.namePrompt.Blur()
-		return chessBoard
-
+		if len(m.games) == 0 {
+			return base.Render(chessBoard)
+		} else {
+			start, end := m.paginator.GetSliceBounds(len(m.games))
+			gamesStrings := formatGamesForPage(m.games[start:end], altCodeStyle)
+			pageInfo := m.paginator.View()
+			return base.Render(lipgloss.JoinVertical(lipgloss.Center, strings.Join(gamesStrings, "\n"), pageInfo))
+		}
 	case InsertCodePage:
 		m.namePrompt.Focus()
 		return m.renderInsertCodeContent(base)
@@ -271,6 +316,36 @@ func (m *PlayModel) renderPageContent(base lipgloss.Style) string {
 	}
 
 	return ""
+}
+
+func formatGamesForPage(games []database.Game, altCodeStyle lipgloss.Style) []string {
+	var gamesStrings []string
+	gamesStrings = append(gamesStrings, "Games list")
+
+	longestName := 0
+	for _, game := range games {
+		if len(game.Name) > longestName {
+			longestName = len(game.Name)
+		}
+	}
+
+	for i, game := range games {
+		indexStr := altCodeStyle.Render(fmt.Sprintf("[%d] ", i))
+		nameStr := game.Name
+		dateStr := game.UpdatedAt.Format("2006-01-02 15:04")
+
+		padding := longestName - len(nameStr)
+		paddingStr := strings.Repeat(" ", padding+4)
+
+		line := lipgloss.JoinHorizontal(lipgloss.Left,
+			indexStr,
+			nameStr,
+			paddingStr,
+			lipgloss.NewStyle().Foreground(lipgloss.Color("#d35400")).Render(dateStr),
+		)
+		gamesStrings = append(gamesStrings, line)
+	}
+	return gamesStrings
 }
 
 func (m PlayModel) renderInsertCodeContent(base lipgloss.Style) string {
@@ -285,10 +360,10 @@ func (m PlayModel) renderInsertCodeContent(base lipgloss.Style) string {
 	}
 
 	// When we have a play, show who we're playing against
-	if m.play != nil {
+	if m.game != nil {
 		playerName := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#e67e22")).
-			Render(m.play.Player1.Username)
+			Render(m.game.Player1.Username)
 
 		statusMsg := fmt.Sprintf("You are playing versus %s", playerName)
 
@@ -304,12 +379,11 @@ func (m PlayModel) renderInsertCodeContent(base lipgloss.Style) string {
 	// Default: show input prompt
 	return base.Render(
 		lipgloss.JoinVertical(lipgloss.Left,
-			lipgloss.NewStyle().Width(23).Render("Insert play code:"),
+			lipgloss.NewStyle().Render("Insert play code:"),
 			m.namePrompt.View(),
 			lipgloss.NewStyle().
 				Align(lipgloss.Center).
 				PaddingTop(2).
-				Width(23).
 				Bold(true).
 				Render(fmt.Sprintf("Press %s to join",
 					lipgloss.NewStyle().Italic(true).Render("Enter"))),
@@ -374,10 +448,19 @@ func (m PlayModel) renderNavigationButtons() string {
 			altCodeStyle.Render(m.keys.StartNewGame.Help().Key),
 			m.keys.StartNewGame.Help().Desc)
 
+		nextPageKey := fmt.Sprintf("%s %s",
+			altCodeStyle.Render(m.keys.NextPage.Help().Key),
+			m.keys.NextPage.Help().Desc)
+
+		prevPageKey := fmt.Sprintf("%s %s",
+			altCodeStyle.Render(m.keys.PrevPage.Help().Key),
+			m.keys.PrevPage.Help().Desc)
+
 		return lipgloss.JoinVertical(
 			lipgloss.Left,
 			enterKey,
 			startKey,
+			lipgloss.JoinHorizontal(lipgloss.Left, prevPageKey, " | ", nextPageKey),
 			logoutKey,
 			quitKey,
 		)
@@ -500,13 +583,6 @@ func (m PlayModel) enterGame() tea.Cmd {
 	}
 }
 
-func (m PlayModel) logout() tea.Cmd {
-	if err := os.Remove(".rahannarc"); err != nil {
-		return nil
-	}
-	return SwitchModelCmd(NewAuthModel(m.width, m.height+1))
-}
-
 // getAuthorizationToken reads the authentication token from the .rahannarc file
 func getAuthorizationToken() (string, error) {
 	f, err := os.Open(".rahannarc")
@@ -540,4 +616,28 @@ func sendAPIRequest(method, url string, payload []byte, authorization string) (*
 
 	client := &http.Client{}
 	return client.Do(req)
+}
+
+func (m *PlayModel) fetchGames() tea.Cmd {
+	return func() tea.Msg {
+		var games []database.Game
+		// Get authorization token
+		authorization, err := getAuthorizationToken()
+		if err != nil {
+			return games
+		}
+
+		// Send API request
+		url := os.Getenv("API_BASE") + "/play"
+		resp, err := sendAPIRequest("GET", url, nil, authorization)
+		if err != nil {
+			return games
+		}
+		defer resp.Body.Close()
+
+		if err := json.NewDecoder(resp.Body).Decode(&games); err != nil {
+			return []database.Game{}
+		}
+		return games
+	}
 }

@@ -4,15 +4,15 @@ import (
 	"github.com/boozec/rahanna/internal/network"
 )
 
-type PlayNetwork struct {
+type GameNetwork struct {
 	server *network.TCPNetwork
 	peer   string
 }
 
-func NewPlayNetwork(localID, localIP string, localPort int) *PlayNetwork {
-	server := network.NewTCPNetwork(localID, localIP, localPort)
+func NewGameNetwork(localID, localIP string, localPort int, callback func()) *GameNetwork {
+	server := network.NewTCPNetwork(localID, localIP, localPort, callback)
 	peer := ""
-	return &PlayNetwork{
+	return &GameNetwork{
 		server: server,
 		peer:   peer,
 	}
