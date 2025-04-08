@@ -48,11 +48,11 @@ func ClearScreen() {
 }
 
 func getFormWidth(width int) int {
-	formWidth := width * 2 / 3
-	if formWidth > 80 {
-		formWidth = 80 // Cap at 80 chars for readability
+	formWidth := width * 2 / 2
+	if formWidth > 160 {
+		formWidth = 160
 	} else if formWidth < 40 {
-		formWidth = width - 4 // For small terminals
+		formWidth = width - 4
 	}
 
 	return formWidth
