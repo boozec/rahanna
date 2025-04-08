@@ -6,11 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/boozec/rahanna/api/auth"
-	"github.com/boozec/rahanna/api/database"
-	"github.com/boozec/rahanna/network"
-	utils "github.com/boozec/rahanna/pkg"
-	"golang.org/x/crypto/bcrypt"
+	"github.com/boozec/rahanna/internal/api/auth"
+	"github.com/boozec/rahanna/internal/api/database"
+	"github.com/boozec/rahanna/internal/network"
 	"gorm.io/gorm"
 )
 
@@ -23,12 +21,12 @@ func RegisterUser(w http.ResponseWriter, r *http.Request) {
 	var user database.User
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
-		utils.JsonError(&w, err.Error())
+		JsonError(&w, err.Error())
 		return
 	}
 
 	if len(user.Password) < 4 {
-		utils.JsonError(&w, "password too short")
+		JsonError(&w, "password too short")
 		return
 	}
 
@@ -37,26 +35,26 @@ func RegisterUser(w http.ResponseWriter, r *http.Request) {
 	result := db.Where("username = ?", user.Username).First(&storedUser)
 
 	if result.Error == nil {
-		utils.JsonError(&w, "user with this username already exists")
+		JsonError(&w, "user with this username already exists")
 		return
 	}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	hashedPassword, err := HashPassword(user.Password)
 	if err != nil {
-		utils.JsonError(&w, err.Error())
+		JsonError(&w, err.Error())
 		return
 	}
 	user.Password = string(hashedPassword)
 
 	result = db.Create(&user)
 	if result.Error != nil {
-		utils.JsonError(&w, result.Error.Error())
+		JsonError(&w, result.Error.Error())
 		return
 	}
 
 	token, err := auth.GenerateJWT(user.ID)
 	if err != nil {
-		utils.JsonError(&w, err.Error())
+		JsonError(&w, err.Error())
 		return
 	}
 
@@ -68,7 +66,7 @@ func LoginUser(w http.ResponseWriter, r *http.Request) {
 	var inputUser database.User
 	err := json.NewDecoder(r.Body).Decode(&inputUser)
 	if err != nil {
-		utils.JsonError(&w, err.Error())
+		JsonError(&w, err.Error())
 		return
 	}
 
@@ -77,19 +75,18 @@ func LoginUser(w http.ResponseWriter, r *http.Request) {
 	db, _ := database.GetDb()
 	result := db.Where("username = ?", inputUser.Username).First(&storedUser)
 	if result.Error != nil {
-		utils.JsonError(&w, "invalid credentials")
+		JsonError(&w, "invalid credentials")
 		return
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(storedUser.Password), []byte(inputUser.Password))
-	if err != nil {
-		utils.JsonError(&w, "invalid credentials")
+	if err := CheckPasswordHash(storedUser.Password, inputUser.Password); err != nil {
+		JsonError(&w, "invalid credentials")
 		return
 	}
 
 	token, err := auth.GenerateJWT(storedUser.ID)
 	if err != nil {
-		utils.JsonError(&w, err.Error())
+		JsonError(&w, err.Error())
 		return
 	}
 
@@ -101,7 +98,7 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 	claims, err := auth.ValidateJWT(r.Header.Get("Authorization"))
 
 	if err != nil {
-		utils.JsonError(&w, err.Error())
+		JsonError(&w, err.Error())
 		return
 	}
 
@@ -110,12 +107,12 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		utils.JsonError(&w, err.Error())
+		JsonError(&w, err.Error())
 		return
 	}
 
 	if err != nil {
-		utils.JsonError(&w, err.Error())
+		JsonError(&w, err.Error())
 		return
 	}
 
@@ -132,7 +129,7 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 
 	result := db.Create(&play)
 	if result.Error != nil {
-		utils.JsonError(&w, result.Error.Error())
+		JsonError(&w, result.Error.Error())
 		return
 	}
 
@@ -144,7 +141,7 @@ func EnterGame(w http.ResponseWriter, r *http.Request) {
 	claims, err := auth.ValidateJWT(r.Header.Get("Authorization"))
 
 	if err != nil {
-		utils.JsonError(&w, err.Error())
+		JsonError(&w, err.Error())
 		return
 	}
 
@@ -154,12 +151,12 @@ func EnterGame(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		utils.JsonError(&w, err.Error())
+		JsonError(&w, err.Error())
 		return
 	}
 
 	if err != nil {
-		utils.JsonError(&w, err.Error())
+		JsonError(&w, err.Error())
 		return
 	}
 
@@ -169,7 +166,7 @@ func EnterGame(w http.ResponseWriter, r *http.Request) {
 
 	result := db.Where("name = ? AND player2_id IS NULL", payload.Name).First(&play)
 	if result.Error != nil {
-		utils.JsonError(&w, result.Error.Error())
+		JsonError(&w, result.Error.Error())
 		return
 	}
 
@@ -178,7 +175,7 @@ func EnterGame(w http.ResponseWriter, r *http.Request) {
 	play.UpdatedAt = time.Now()
 
 	if err := db.Save(&play).Error; err != nil {
-		utils.JsonError(&w, err.Error())
+		JsonError(&w, err.Error())
 		return
 	}
 
@@ -192,7 +189,7 @@ func EnterGame(w http.ResponseWriter, r *http.Request) {
 		First(&play)
 
 	if result.Error != nil {
-		utils.JsonError(&w, result.Error.Error())
+		JsonError(&w, result.Error.Error())
 		return
 	}
 

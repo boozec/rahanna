@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/boozec/rahanna/api/database"
-	"github.com/boozec/rahanna/network"
+	"github.com/boozec/rahanna/internal/api/database"
+	"github.com/boozec/rahanna/internal/network"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"

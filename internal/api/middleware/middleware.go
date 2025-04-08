@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/boozec/rahanna/api/auth"
+	"github.com/boozec/rahanna/internal/api/auth"
 )
 
 func AuthMiddleware(next http.Handler) http.Handler {

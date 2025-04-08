@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/boozec/rahanna/api/database"
-	"github.com/boozec/rahanna/api/handlers"
-	"github.com/boozec/rahanna/api/middleware"
+	"github.com/boozec/rahanna/internal/api/database"
+	"github.com/boozec/rahanna/internal/api/handlers"
+	"github.com/boozec/rahanna/internal/api/middleware"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 )

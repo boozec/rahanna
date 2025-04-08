@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/boozec/rahanna/ui/views"
+	"github.com/boozec/rahanna/pkg/ui/views"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
