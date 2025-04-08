@@ -2,12 +2,12 @@ package handlers
 
 import (
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/boozec/rahanna/internal/api/auth"
 	"github.com/boozec/rahanna/internal/api/database"
+	"github.com/boozec/rahanna/internal/logger"
 	"github.com/boozec/rahanna/internal/network"
 	"gorm.io/gorm"
 )
@@ -17,7 +17,8 @@ type NewGameRequest struct {
 }
 
 func RegisterUser(w http.ResponseWriter, r *http.Request) {
-	slog.Info("POST /auth/register")
+	log, _ := logger.GetLogger()
+	log.Info("POST /auth/register")
 	var user database.User
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
@@ -62,7 +63,8 @@ func RegisterUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func LoginUser(w http.ResponseWriter, r *http.Request) {
-	slog.Info("POST /auth/login")
+	log, _ := logger.GetLogger()
+	log.Info("POST /auth/login")
 	var inputUser database.User
 	err := json.NewDecoder(r.Body).Decode(&inputUser)
 	if err != nil {
@@ -94,7 +96,8 @@ func LoginUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func NewPlay(w http.ResponseWriter, r *http.Request) {
-	slog.Info("POST /play")
+	log, _ := logger.GetLogger()
+	log.Info("POST /play")
 	claims, err := auth.ValidateJWT(r.Header.Get("Authorization"))
 
 	if err != nil {
@@ -137,7 +140,8 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 }
 
 func EnterGame(w http.ResponseWriter, r *http.Request) {
-	slog.Info("POST /enter-game")
+	log, _ := logger.GetLogger()
+	log.Info("POST /enter-game")
 	claims, err := auth.ValidateJWT(r.Header.Get("Authorization"))
 
 	if err != nil {

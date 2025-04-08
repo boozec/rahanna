@@ -8,12 +8,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/boozec/rahanna/internal/logger"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"gopkg.in/natefinch/lumberjack.v2"
 )
-
-var logger *zap.Logger
 
 // PeerInfo represents a peer's ID and IP.
 type PeerInfo struct {
@@ -42,6 +39,7 @@ type TCPNetwork struct {
 	callbacksMu sync.RWMutex
 	isConnected bool
 	retryDelay  time.Duration
+	logger      *zap.Logger
 	sync.Mutex
 }
 
@@ -53,35 +51,12 @@ func NewTCPNetwork(localID, localIP string, localPort int) *TCPNetwork {
 		callbacks:   make(map[string]NetworkCallback),
 		isConnected: false,
 		retryDelay:  2 * time.Second,
+		logger:      logger.InitLogger("rahanna.log"),
 	}
 
-	n.setupLogger("rahanna-network.log")
 	go n.startServer()
 
 	return n
-}
-
-func (n *TCPNetwork) setupLogger(logFile string) {
-	cfg := zap.NewProductionConfig()
-	cfg.OutputPaths = []string{logFile}
-	cfg.ErrorOutputPaths = []string{logFile}
-
-	// Configure lumberjack for log rotation
-	lumberjackLogger := &lumberjack.Logger{
-		Filename:   logFile,
-		MaxSize:    100, // megabytes
-		MaxBackups: 5,
-		MaxAge:     30, // days
-		Compress:   true,
-	}
-
-	core := zapcore.NewCore(
-		zapcore.NewJSONEncoder(cfg.EncoderConfig),
-		zapcore.AddSync(lumberjackLogger), // Log only to the file via lumberjack
-		cfg.Level,
-	)
-
-	logger = zap.New(core)
 }
 
 // Add a new peer connection to the local peer
@@ -94,16 +69,16 @@ func (n *TCPNetwork) startServer() {
 	address := fmt.Sprintf("%s:%d", n.localPeer.IP, n.localPeer.Port)
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
-		logger.Sugar().Errorf("failed to start server: %v", err)
+		n.logger.Sugar().Errorf("failed to start server: %v", err)
 		return
 	}
 	n.listener = listener
-	logger.Sugar().Infof("server started on %s\n", address)
+	n.logger.Sugar().Infof("server started on %s\n", address)
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			logger.Sugar().Errorf("failed to accept connection: %v\n", err)
+			n.logger.Sugar().Errorf("failed to accept connection: %v\n", err)
 			continue
 		}
 
@@ -114,7 +89,7 @@ func (n *TCPNetwork) startServer() {
 		n.isConnected = true
 		n.retryDelay = 2 * time.Second
 
-		logger.Sugar().Infof("connected to remote peer %s\n", remoteAddr)
+		n.logger.Sugar().Infof("connected to remote peer %s\n", remoteAddr)
 		go n.listenForMessages(conn)
 	}
 }
@@ -135,7 +110,7 @@ func (n *TCPNetwork) retryConnect(remoteID, remoteIP string, remotePort int) {
 		conn, err := net.Dial("tcp", address)
 
 		if err != nil {
-			logger.Sugar().Errorf("failed to connect to %s: %v. Retrying in %v...", remoteID, err, n.retryDelay)
+			n.logger.Sugar().Errorf("failed to connect to %s: %v. Retrying in %v...", remoteID, err, n.retryDelay)
 			time.Sleep(n.retryDelay)
 			if n.retryDelay < 30*time.Second {
 				n.retryDelay *= 2
@@ -146,7 +121,7 @@ func (n *TCPNetwork) retryConnect(remoteID, remoteIP string, remotePort int) {
 		n.Lock()
 		n.connections[remoteID] = conn
 		n.Unlock()
-		logger.Sugar().Infof("successfully connected to peer %s!", remoteID)
+		n.logger.Sugar().Infof("successfully connected to peer %s!", remoteID)
 
 		go n.listenForMessages(conn)
 	}
@@ -177,7 +152,7 @@ func (n *TCPNetwork) Send(remoteID, messageType string, payload []byte) error {
 
 	_, err = conn.Write(append(data, '\n'))
 	if err != nil {
-		logger.Sugar().Errorf("failed to send message to %s: %v. Reconnecting...", remoteID, err)
+		n.logger.Sugar().Errorf("failed to send message to %s: %v. Reconnecting...", remoteID, err)
 		n.Lock()
 		delete(n.connections, remoteID)
 		n.Unlock()
@@ -202,7 +177,7 @@ func (n *TCPNetwork) listenForMessages(conn net.Conn) {
 	for {
 		data, err := reader.ReadBytes('\n')
 		if err != nil {
-			logger.Debug("connection lost. Reconnecting...")
+			n.logger.Debug("connection lost. Reconnecting...")
 			n.Lock()
 			for id, c := range n.connections {
 				if c == conn {
@@ -217,7 +192,7 @@ func (n *TCPNetwork) listenForMessages(conn net.Conn) {
 
 		var message Message
 		if err := json.Unmarshal(data, &message); err != nil {
-			logger.Sugar().Errorf("failed to unmarshal message: %v\n", err)
+			n.logger.Sugar().Errorf("failed to unmarshal message: %v\n", err)
 			continue
 		}
 

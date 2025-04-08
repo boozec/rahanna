@@ -2,15 +2,17 @@ package network
 
 import (
 	"fmt"
-	"log/slog"
 	"math/rand"
 	"net"
+
+	"github.com/boozec/rahanna/internal/logger"
 )
 
 func GetOutboundIP() net.IP {
+	log, _ := logger.GetLogger()
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
-		slog.Error("err", err)
+		log.Sugar().Error("err", err)
 	}
 	defer conn.Close()
 
