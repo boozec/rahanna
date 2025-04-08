@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var logger *zap.Logger
@@ -53,11 +55,33 @@ func NewTCPNetwork(localID, localIP string, localPort int) *TCPNetwork {
 		retryDelay:  2 * time.Second,
 	}
 
+	n.setupLogger("rahanna-network.log")
 	go n.startServer()
 
-	logger, _ = zap.NewProduction()
-
 	return n
+}
+
+func (n *TCPNetwork) setupLogger(logFile string) {
+	cfg := zap.NewProductionConfig()
+	cfg.OutputPaths = []string{logFile}
+	cfg.ErrorOutputPaths = []string{logFile}
+
+	// Configure lumberjack for log rotation
+	lumberjackLogger := &lumberjack.Logger{
+		Filename:   logFile,
+		MaxSize:    100, // megabytes
+		MaxBackups: 5,
+		MaxAge:     30, // days
+		Compress:   true,
+	}
+
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(cfg.EncoderConfig),
+		zapcore.AddSync(lumberjackLogger), // Log only to the file via lumberjack
+		cfg.Level,
+	)
+
+	logger = zap.New(core)
 }
 
 // Add a new peer connection to the local peer
@@ -71,6 +95,7 @@ func (n *TCPNetwork) startServer() {
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		logger.Sugar().Errorf("failed to start server: %v", err)
+		return
 	}
 	n.listener = listener
 	logger.Sugar().Infof("server started on %s\n", address)
