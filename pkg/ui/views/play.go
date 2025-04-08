@@ -357,14 +357,6 @@ func (m PlayModel) buildWindowContent(content string, formWidth int) string {
 }
 
 func (m PlayModel) renderNavigationButtons() string {
-	enterKey := fmt.Sprintf("%s %s",
-		altCodeStyle.Render(m.keys.EnterNewGame.Help().Key),
-		m.keys.EnterNewGame.Help().Desc)
-
-	startKey := fmt.Sprintf("%s %s",
-		altCodeStyle.Render(m.keys.StartNewGame.Help().Key),
-		m.keys.StartNewGame.Help().Desc)
-
 	logoutKey := fmt.Sprintf("%s %s",
 		altCodeStyle.Render(m.keys.GoLogout.Help().Key),
 		m.keys.GoLogout.Help().Desc)
@@ -373,11 +365,26 @@ func (m PlayModel) renderNavigationButtons() string {
 		altCodeStyle.Render(m.keys.Quit.Help().Key),
 		m.keys.Quit.Help().Desc)
 
-	// Vertically align the buttons
+	if m.page == LandingPage {
+		enterKey := fmt.Sprintf("%s %s",
+			altCodeStyle.Render(m.keys.EnterNewGame.Help().Key),
+			m.keys.EnterNewGame.Help().Desc)
+
+		startKey := fmt.Sprintf("%s %s",
+			altCodeStyle.Render(m.keys.StartNewGame.Help().Key),
+			m.keys.StartNewGame.Help().Desc)
+
+		return lipgloss.JoinVertical(
+			lipgloss.Left,
+			enterKey,
+			startKey,
+			logoutKey,
+			quitKey,
+		)
+	}
+
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
-		enterKey,
-		startKey,
 		logoutKey,
 		quitKey,
 	)
