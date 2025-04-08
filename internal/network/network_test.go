@@ -12,12 +12,12 @@ func TestPeerToPeerCommunication(t *testing.T) {
 	// Create a mock of the first peer (peer-1)
 	peer1IP := "127.0.0.1"
 	peer1Port := 9001
-	peer1 := NewTCPNetwork("peer-1", peer1IP, peer1Port)
+	peer1 := NewTCPNetwork("peer-1", peer1IP, peer1Port, func() {})
 
 	// Create a mock of the second peer (peer-2)
 	peer2IP := "127.0.0.1"
 	peer2Port := 9002
-	peer2 := NewTCPNetwork("peer-2", peer2IP, peer2Port)
+	peer2 := NewTCPNetwork("peer-2", peer2IP, peer2Port, func() {})
 
 	// Register a message handler on peer-2 to receive the message from peer-1
 	peer2.RegisterHandler("chat", func(msg Message) {
@@ -43,8 +43,8 @@ func TestPeerToPeerCommunication(t *testing.T) {
 
 // TestSendFailure tests if sending a message fails when no connection exists.
 func TestSendFailure(t *testing.T) {
-	peer1 := NewTCPNetwork("peer-1", "127.0.0.1", 9001)
-	_ = NewTCPNetwork("peer-2", "127.0.0.1", 9002)
+	peer1 := NewTCPNetwork("peer-1", "127.0.0.1", 9001, func() {})
+	_ = NewTCPNetwork("peer-2", "127.0.0.1", 9002, func() {})
 
 	// Attempt to send a message without establishing a connection first
 	err := peer1.Send("peer-2", "chat", []byte("Message without connection"))

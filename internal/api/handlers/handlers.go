@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/boozec/rahanna/internal/api/database"
 	"github.com/boozec/rahanna/internal/logger"
 	"github.com/boozec/rahanna/internal/network"
+	"github.com/gorilla/mux"
 	"gorm.io/gorm"
 )
 
@@ -166,36 +168,101 @@ func EnterGame(w http.ResponseWriter, r *http.Request) {
 
 	db, _ := database.GetDb()
 
-	var play database.Game
+	var game database.Game
 
-	result := db.Where("name = ? AND player2_id IS NULL", payload.Name).First(&play)
+	result := db.Where("name = ? AND player2_id IS NULL", payload.Name).First(&game)
 	if result.Error != nil {
 		JsonError(&w, result.Error.Error())
 		return
 	}
 
-	play.Player2ID = &claims.UserID
-	play.IP2 = payload.IP
-	play.UpdatedAt = time.Now()
+	game.Player2ID = &claims.UserID
+	game.IP2 = payload.IP
+	game.UpdatedAt = time.Now()
 
-	if err := db.Save(&play).Error; err != nil {
+	if err := db.Save(&game).Error; err != nil {
 		JsonError(&w, err.Error())
 		return
 	}
 
-	result = db.Where("id = ?", play.ID).
+	result = db.Where("id = ?", game.ID).
 		Preload("Player1", func(db *gorm.DB) *gorm.DB {
 			return db.Omit("Password")
 		}).
 		Preload("Player2", func(db *gorm.DB) *gorm.DB {
 			return db.Omit("Password")
 		}).
-		First(&play)
+		First(&game)
 
 	if result.Error != nil {
 		JsonError(&w, result.Error.Error())
 		return
 	}
 
-	json.NewEncoder(w).Encode(play)
+	json.NewEncoder(w).Encode(game)
+}
+
+func AllPlay(w http.ResponseWriter, r *http.Request) {
+	log, _ := logger.GetLogger()
+	log.Info("GET /play")
+
+	claims, err := auth.ValidateJWT(r.Header.Get("Authorization"))
+
+	if err != nil {
+		JsonError(&w, err.Error())
+		return
+	}
+
+	db, _ := database.GetDb()
+	var games []database.Game
+
+	result := db.Where("player1_id = ? OR player2_id = ?", claims.UserID, claims.UserID).
+		Preload("Player1", func(db *gorm.DB) *gorm.DB {
+			return db.Omit("Password")
+		}).
+		Preload("Player2", func(db *gorm.DB) *gorm.DB {
+			return db.Omit("Password")
+		}).
+		Order("updated_at DESC").
+		Find(&games)
+
+	if result.Error != nil {
+		JsonError(&w, result.Error.Error())
+		return
+	}
+
+	json.NewEncoder(w).Encode(games)
+}
+
+func GetGameId(w http.ResponseWriter, r *http.Request) {
+	log, _ := logger.GetLogger()
+	vars := mux.Vars(r)
+	id := vars["id"]
+	log.Info(fmt.Sprintf("GET /play/%s", id))
+
+	claims, err := auth.ValidateJWT(r.Header.Get("Authorization"))
+
+	if err != nil {
+		JsonError(&w, err.Error())
+		return
+	}
+
+	db, _ := database.GetDb()
+	var game database.Game
+
+	result := db.Where("id = ? AND (player1_id = ? OR player2_id = ?)", id, claims.UserID, claims.UserID).
+		Preload("Player1", func(db *gorm.DB) *gorm.DB {
+			return db.Omit("Password")
+		}).
+		Preload("Player2", func(db *gorm.DB) *gorm.DB {
+			return db.Omit("Password")
+		}).
+		First(&game)
+
+	if result.Error != nil {
+		JsonError(&w, result.Error.Error())
+		return
+	}
+
+	json.NewEncoder(w).Encode(game)
 }

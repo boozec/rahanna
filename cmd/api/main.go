@@ -20,6 +20,8 @@ func main() {
 	r.HandleFunc("/auth/register", handlers.RegisterUser).Methods(http.MethodPost)
 	r.HandleFunc("/auth/login", handlers.LoginUser).Methods(http.MethodPost)
 	r.Handle("/play", middleware.AuthMiddleware(http.HandlerFunc(handlers.NewPlay))).Methods(http.MethodPost)
+	r.Handle("/play", middleware.AuthMiddleware(http.HandlerFunc(handlers.AllPlay))).Methods(http.MethodGet)
+	r.Handle("/play/{id}", middleware.AuthMiddleware(http.HandlerFunc(handlers.GetGameId))).Methods(http.MethodGet)
 	r.Handle("/enter-game", middleware.AuthMiddleware(http.HandlerFunc(handlers.EnterGame))).Methods(http.MethodPost)
 
 	log.Info("Serving on :8080")

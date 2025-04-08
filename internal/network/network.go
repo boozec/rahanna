@@ -44,7 +44,7 @@ type TCPNetwork struct {
 }
 
 // initializes a TCP peer
-func NewTCPNetwork(localID, localIP string, localPort int) *TCPNetwork {
+func NewTCPNetwork(localID, localIP string, localPort int, onReceive func()) *TCPNetwork {
 	n := &TCPNetwork{
 		localPeer:   PeerInfo{ID: localID, IP: localIP, Port: localPort},
 		connections: make(map[string]net.Conn),
@@ -54,7 +54,7 @@ func NewTCPNetwork(localID, localIP string, localPort int) *TCPNetwork {
 		logger:      logger.InitLogger("rahanna.log"),
 	}
 
-	go n.startServer()
+	go n.startServer(onReceive)
 
 	return n
 }
@@ -65,7 +65,7 @@ func (n *TCPNetwork) AddPeer(remoteID string, remoteIP string, remotePort int) {
 }
 
 // startServer starts a TCP server to accept connections.
-func (n *TCPNetwork) startServer() {
+func (n *TCPNetwork) startServer(callback func()) {
 	address := fmt.Sprintf("%s:%d", n.localPeer.IP, n.localPeer.Port)
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
@@ -85,6 +85,7 @@ func (n *TCPNetwork) startServer() {
 		remoteAddr := conn.RemoteAddr().String()
 		n.Lock()
 		n.connections[remoteAddr] = conn
+		callback()
 		n.Unlock()
 		n.isConnected = true
 		n.retryDelay = 2 * time.Second
