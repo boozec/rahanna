@@ -19,9 +19,4 @@ jobs:
         go-version: '1.23'
 
     - name: Test
-      run: go test $(go list ./... | egrep -v 'proto|cmd') -v -coverprofile=coverage.txt
-
-    - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v5
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
+      run: go test $(go list ./... | egrep -v 'proto|cmd') -v
