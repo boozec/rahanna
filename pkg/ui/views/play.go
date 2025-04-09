@@ -258,7 +258,7 @@ func (m *PlayModel) handlePlayResponse(msg playResponse) (tea.Model, tea.Cmd) {
 	m.err = nil
 
 	if msg.Error != "" {
-		m.err = fmt.Errorf(msg.Error)
+		m.err = fmt.Errorf("%s", msg.Error)
 		if msg.Error == "unauthorized" {
 			return m, logout(m.width, m.height+1)
 		}

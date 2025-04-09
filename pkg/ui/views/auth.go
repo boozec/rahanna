@@ -261,7 +261,7 @@ func (m loginModel) Update(msg tea.Msg) (loginModel, tea.Cmd) {
 	case authResponse:
 		m.isLoading = false
 		if msg.Error != "" {
-			m.err = fmt.Errorf(msg.Error)
+			m.err = fmt.Errorf("%s", msg.Error)
 			m.focus = 0
 			m.updateFocus()
 		} else {
@@ -316,7 +316,7 @@ func (m signupModel) Update(msg tea.Msg) (signupModel, tea.Cmd) {
 	case authResponse:
 		m.isLoading = false
 		if msg.Error != "" {
-			m.err = fmt.Errorf(msg.Error)
+			m.err = fmt.Errorf("%s", msg.Error)
 			m.focus = 0
 			m.updateFocus()
 		} else {
