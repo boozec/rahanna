@@ -157,8 +157,6 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, exit
 	}
 
-	m.paginator.SetTotalPages(len(m.games))
-
 	select {
 	case <-start:
 		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, m.game, m.network))
@@ -286,6 +284,7 @@ func (m *PlayModel) handleGamesResponse(msg []database.Game) (tea.Model, tea.Cmd
 	m.isLoading = false
 	m.games = msg
 	m.err = nil
+	m.paginator.SetTotalPages(len(m.games))
 	return m, nil
 }
 
