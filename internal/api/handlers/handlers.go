@@ -138,7 +138,7 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]string{"name": name})
+	json.NewEncoder(w).Encode(map[string]interface{}{"id": play.ID, "name": name})
 }
 
 func EnterGame(w http.ResponseWriter, r *http.Request) {

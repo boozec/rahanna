@@ -1,12 +1,11 @@
 package views
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/boozec/rahanna/internal/api/database"
@@ -21,7 +20,7 @@ import (
 
 const (
 	chessBoard = `
-  A B C D E F G H
+A B C D E F G H
 +---------------+
 8 |♜ ♞ ♝ ♛ ♚ ♝ ♞ ♜| 8
 7 |♟ ♟ ♟ ♟ ♟ ♟ ♟ ♟| 7
@@ -32,7 +31,7 @@ const (
 2 |♙ ♙ ♙ ♙ ♙ ♙ ♙ ♙| 2
 1 |♖ ♘ ♗ ♕ ♔ ♗ ♘ ♖| 1
 +---------------+
-  A B C D E F G H
+A B C D E F G H
 `
 )
 
@@ -47,9 +46,10 @@ const (
 )
 
 type responseOk struct {
-	Name string `json:"name"`
-	IP   string `json:"ip"`
-	Port int    `json:"int"`
+	Name   string `json:"name"`
+	GameID int    `json:"id"`
+	IP     string `json:"ip"`
+	Port   int    `json:"int"`
 }
 
 // API response types
@@ -110,10 +110,11 @@ type PlayModel struct {
 	paginator  paginator.Model
 
 	// Game state
-	playName string
-	game     *database.Game
-	network  *multiplayer.GameNetwork
-	games    []database.Game // Store the list of games
+	playName      string
+	currentGameId int
+	game          *database.Game
+	network       *multiplayer.GameNetwork
+	games         []database.Game
 }
 
 // NewPlayModel creates a new play model instance
@@ -159,7 +160,7 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	select {
 	case <-start:
-		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, m.game, m.network))
+		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, "peer-1", m.currentGameId, m.network))
 	default:
 	}
 
@@ -176,13 +177,6 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleGamesResponse(msg)
 	case error:
 		return m.handleError(msg)
-	}
-
-	// Handle input updates when on the InsertCodePage
-	if m.page == InsertCodePage {
-		var cmd tea.Cmd
-		m.namePrompt, cmd = m.namePrompt.Update(msg)
-		return m, cmd
 	}
 
 	return m, nil
@@ -223,10 +217,13 @@ func (m PlayModel) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) 
 }
 
 func (m PlayModel) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch {
 	case key.Matches(msg, m.keys.EnterNewGame):
 		m.page = InsertCodePage
-		return m, nil
+		m.namePrompt, cmd = m.namePrompt.Update("suca")
+		return m, cmd
 
 	case key.Matches(msg, m.keys.StartNewGame):
 		m.page = StartGamePage
@@ -250,6 +247,11 @@ func (m PlayModel) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	m.paginator, _ = m.paginator.Update(msg)
 
+	if m.page == InsertCodePage {
+		m.namePrompt, cmd = m.namePrompt.Update(msg)
+		return m, cmd
+	}
+
 	return m, nil
 }
 
@@ -264,6 +266,7 @@ func (m *PlayModel) handlePlayResponse(msg playResponse) (tea.Model, tea.Cmd) {
 		}
 	} else {
 		m.playName = msg.Ok.Name
+		m.currentGameId = msg.Ok.GameID
 
 		m.network = multiplayer.NewGameNetwork("peer-1", msg.Ok.IP, msg.Ok.Port, func() {
 			close(start)
@@ -277,6 +280,14 @@ func (m *PlayModel) handleGameResponse(msg database.Game) (tea.Model, tea.Cmd) {
 	m.isLoading = false
 	m.game = &msg
 	m.err = nil
+	ip := strings.Split(m.game.IP2, ":")
+	if len(ip) == 2 {
+		localIP := ip[0]
+		localPort, _ := strconv.ParseInt(ip[1], 10, 32)
+		network := multiplayer.NewGameNetwork("peer-2", localIP, int(localPort), func() {})
+
+		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, "peer-2", m.game.ID, network))
+	}
 	return m, nil
 }
 
@@ -307,7 +318,6 @@ func (m PlayModel) renderPageContent(base lipgloss.Style) string {
 			return base.Render(lipgloss.JoinVertical(lipgloss.Center, strings.Join(gamesStrings, "\n"), pageInfo))
 		}
 	case InsertCodePage:
-		m.namePrompt.Focus()
 		return m.renderInsertCodeContent(base)
 
 	case StartGamePage:
@@ -355,23 +365,6 @@ func (m PlayModel) renderInsertCodeContent(base lipgloss.Style) string {
 				Align(lipgloss.Center).
 				Bold(true).
 				Render("Loading..."),
-		)
-	}
-
-	// When we have a play, show who we're playing against
-	if m.game != nil {
-		playerName := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#e67e22")).
-			Render(m.game.Player1.Username)
-
-		statusMsg := fmt.Sprintf("You are playing versus %s", playerName)
-
-		return base.Render(
-			lipgloss.NewStyle().
-				Align(lipgloss.Center).
-				Width(m.width).
-				Bold(true).
-				Render(statusMsg),
 		)
 	}
 
@@ -518,13 +511,14 @@ func (m *PlayModel) newGameCallback() tea.Cmd {
 		// Decode successful response
 		var response struct {
 			Name  string `json:"name"`
+			ID    int    `json:"id"`
 			Error string `json:"error"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 			return playResponse{Error: fmt.Sprintf("Error decoding JSON: %v", err)}
 		}
 
-		return playResponse{Ok: responseOk{Name: response.Name, IP: ip, Port: port}}
+		return playResponse{Ok: responseOk{Name: response.Name, GameID: response.ID, IP: ip, Port: port}}
 	}
 }
 
@@ -580,41 +574,6 @@ func (m PlayModel) enterGame() tea.Cmd {
 
 		return response
 	}
-}
-
-// getAuthorizationToken reads the authentication token from the .rahannarc file
-func getAuthorizationToken() (string, error) {
-	f, err := os.Open(".rahannarc")
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	var authorization string
-	for scanner.Scan() {
-		authorization = scanner.Text()
-	}
-
-	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("error reading auth token: %v", err)
-	}
-
-	return authorization, nil
-}
-
-// sendAPIRequest sends an HTTP request to the API with the given parameters
-func sendAPIRequest(method, url string, payload []byte, authorization string) (*http.Response, error) {
-	req, err := http.NewRequest(method, url, bytes.NewReader(payload))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", authorization))
-
-	client := &http.Client{}
-	return client.Do(req)
 }
 
 func (m *PlayModel) fetchGames() tea.Cmd {

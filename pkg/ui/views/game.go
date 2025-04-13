@@ -1,7 +1,11 @@
 package views
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 
 	"github.com/boozec/rahanna/internal/api/database"
 	"github.com/boozec/rahanna/pkg/ui/multiplayer"
@@ -11,7 +15,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Keyboard controls
+// gameKeyMap defines the key bindings for the game view.
 type gameKeyMap struct {
 	EnterNewGame key.Binding
 	StartNewGame key.Binding
@@ -19,18 +23,19 @@ type gameKeyMap struct {
 	Quit         key.Binding
 }
 
-// Default key bindings for the game model
+// defaultGameKeyMap provides the default key bindings for the game view.
 var defaultGameKeyMap = gameKeyMap{
 	GoLogout: key.NewBinding(
-		key.WithKeys("alt+Q", "alt+q"),
+		key.WithKeys("alt+q"),
 		key.WithHelp("Alt+Q", "Logout"),
 	),
 	Quit: key.NewBinding(
-		key.WithKeys("Q", "q"),
-		key.WithHelp("    Q", "Quit"),
+		key.WithKeys("q"),
+		key.WithHelp("Q", "Quit"),
 	),
 }
 
+// GameModel represents the state of the game view.
 type GameModel struct {
 	// UI dimensions
 	width  int
@@ -40,25 +45,30 @@ type GameModel struct {
 	keys playKeyMap
 
 	// Game state
-	game    *database.Game
-	network *multiplayer.GameNetwork
+	peer          string
+	currentGameID int
+	game          *database.Game
+	network       *multiplayer.GameNetwork
 }
 
-func NewGameModel(width, height int, game *database.Game, network *multiplayer.GameNetwork) GameModel {
+// NewGameModel creates a new GameModel.
+func NewGameModel(width, height int, peer string, currentGameID int, network *multiplayer.GameNetwork) GameModel {
 	return GameModel{
-		width:   width,
-		height:  height,
-		game:    game,
-		network: network,
+		width:         width,
+		height:        height,
+		peer:          peer,
+		currentGameID: currentGameID,
+		network:       network,
 	}
 }
 
-// Init function for GameModel
+// Init initializes the GameModel.
 func (m GameModel) Init() tea.Cmd {
 	ClearScreen()
-	return textinput.Blink
+	return tea.Batch(textinput.Blink, m.getGame())
 }
 
+// Update handles incoming messages and updates the GameModel.
 func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if exit := handleExit(msg); exit != nil {
 		return m, exit
@@ -69,22 +79,29 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleWindowSize(msg)
 	case tea.KeyMsg:
 		return m.handleKeyPress(msg)
+	case database.Game:
+		return m.handleGetGameResponse(msg)
 	}
 
 	return m, nil
 }
 
-// View function for GameModel
+// View renders the GameModel.
 func (m GameModel) View() string {
 	formWidth := getFormWidth(m.width)
-	// base := lipgloss.NewStyle().Align(lipgloss.Center).Width(m.width)
 
-	content := "abc"
+	var content string
+	if m.game != nil {
+		otherPlayer := ""
+		if m.peer == "peer-1" {
+			otherPlayer = m.game.Player2.Username
+		} else {
+			otherPlayer = m.game.Player1.Username
+		}
+		content = fmt.Sprintf("You're playing versus %s", otherPlayer)
+	}
 
-	// Build the main window with error handling
 	windowContent := m.buildWindowContent(content, formWidth)
-
-	// Create navigation buttons
 	buttons := m.renderNavigationButtons()
 
 	centeredContent := lipgloss.JoinVertical(
@@ -113,11 +130,9 @@ func (m GameModel) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.GoLogout):
 		return m, logout(m.width, m.height+1)
-
 	case key.Matches(msg, m.keys.Quit):
 		return m, tea.Quit
 	}
-
 	return m, nil
 }
 
@@ -145,4 +160,61 @@ func (m GameModel) renderNavigationButtons() string {
 		logoutKey,
 		quitKey,
 	)
+}
+
+func (m *GameModel) handleGetGameResponse(msg database.Game) (tea.Model, tea.Cmd) {
+	m.game = &msg
+	if m.peer == "peer-1" {
+		m.network.Peer = msg.IP2
+	} else {
+		m.network.Peer = msg.IP1
+	}
+	return m, nil
+}
+
+func (m *GameModel) getGame() tea.Cmd {
+	return func() tea.Msg {
+		var game database.Game
+
+		// Get authorization token
+		authorization, err := getAuthorizationToken()
+		if err != nil {
+			return nil
+		}
+
+		// Send API request
+		url := fmt.Sprintf("%s/play/%d", os.Getenv("API_BASE"), m.currentGameID)
+		resp, err := sendAPIRequest("GET", url, nil, authorization)
+		if err != nil {
+			return nil
+		}
+		defer resp.Body.Close()
+
+		if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
+			return nil
+		}
+
+		// Establish peer connection
+		if m.peer == "peer-1" {
+			if game.IP2 != "" {
+				ipParts := strings.Split(game.IP2, ":")
+				if len(ipParts) == 2 {
+					remoteIP := ipParts[0]
+					remotePortInt, _ := strconv.Atoi(ipParts[1])
+					go m.network.Server.AddPeer("peer-2", remoteIP, remotePortInt)
+				}
+			}
+		} else {
+			if game.IP1 != "" {
+				ipParts := strings.Split(game.IP1, ":")
+				if len(ipParts) == 2 {
+					remoteIP := ipParts[0]
+					remotePortInt, _ := strconv.Atoi(ipParts[1])
+					go m.network.Server.AddPeer("peer-1", remoteIP, remotePortInt)
+				}
+			}
+		}
+
+		return game
+	}
 }

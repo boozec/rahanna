@@ -100,9 +100,7 @@ func SwitchModelCmd(model tea.Model) tea.Cmd {
 		model: model,
 	}
 
-	return func() tea.Msg {
-		return s
-	}
+	return tea.Batch(func() tea.Msg { return s }, s.model.Init())
 }
 
 func (m RahannaModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
