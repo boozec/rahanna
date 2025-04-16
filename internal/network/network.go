@@ -193,6 +193,8 @@ func (n *TCPNetwork) listenForMessages(conn net.Conn) {
 			continue
 		}
 
+		n.Logger.Sugar().Infof("Received message from '%s': %s", message.Source, string(message.Payload))
+
 		n.OnReceiveFn(message)
 	}
 }

@@ -38,8 +38,6 @@ A B C D E F G H
 
 type PlayModelPage int
 
-var start = make(chan int)
-
 const (
 	LandingPage PlayModelPage = iota
 	InsertCodePage
@@ -96,6 +94,8 @@ var defaultPlayKeyMap = playKeyMap{
 		key.WithHelp("←/l", "Prev Page"),
 	),
 }
+
+type StartGameMsg struct{}
 
 type PlayModel struct {
 	// UI dimensions
@@ -159,12 +159,6 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, exit
 	}
 
-	select {
-	case <-start:
-		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, "peer-1", m.currentGameId, m.network))
-	default:
-	}
-
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		return m.handleWindowSize(msg)
@@ -176,6 +170,8 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleGameResponse(msg)
 	case []database.Game:
 		return m.handleGamesResponse(msg)
+	case StartGameMsg:
+		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, "peer-2", m.currentGameId, m.network))
 	case error:
 		return m.handleError(msg)
 	}
@@ -269,10 +265,17 @@ func (m *PlayModel) handlePlayResponse(msg playResponse) (tea.Model, tea.Cmd) {
 		m.playName = msg.Ok.Name
 		m.currentGameId = msg.Ok.GameID
 		logger, _ := logger.GetLogger()
+
+		callbackCompleted := make(chan bool)
 		m.network = multiplayer.NewGameNetwork("peer-1", fmt.Sprintf("%s:%d", msg.Ok.IP, msg.Ok.Port), func() error {
-			start <- 1
+			close(callbackCompleted)
 			return nil
 		}, logger)
+
+		return m, func() tea.Msg {
+			<-callbackCompleted
+			return StartGameMsg{}
+		}
 	}
 
 	return m, nil
@@ -292,7 +295,7 @@ func (m *PlayModel) handleGameResponse(msg database.Game) (tea.Model, tea.Cmd) {
 			return nil
 		}, logger)
 
-		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, "peer-2", m.game.ID, network))
+		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, "peer-1", m.game.ID, network))
 	}
 	return m, nil
 }

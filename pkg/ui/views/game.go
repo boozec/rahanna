@@ -3,35 +3,44 @@ package views
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 
 	"github.com/boozec/rahanna/internal/api/database"
+	"github.com/boozec/rahanna/internal/network"
 	"github.com/boozec/rahanna/pkg/ui/multiplayer"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/notnil/chess"
 )
 
 // gameKeyMap defines the key bindings for the game view.
 type gameKeyMap struct {
-	EnterNewGame key.Binding
-	StartNewGame key.Binding
-	GoLogout     key.Binding
-	Quit         key.Binding
+	GoLogout   key.Binding
+	RandomMove key.Binding
+	Quit       key.Binding
 }
 
 // defaultGameKeyMap provides the default key bindings for the game view.
 var defaultGameKeyMap = gameKeyMap{
+	RandomMove: key.NewBinding(
+		key.WithKeys("R", "r"),
+		key.WithHelp("R", "Random Move"),
+	),
 	GoLogout: key.NewBinding(
-		key.WithKeys("alt+q"),
+		key.WithKeys("alt+Q", "alt+q"),
 		key.WithHelp("Alt+Q", "Logout"),
 	),
 	Quit: key.NewBinding(
-		key.WithKeys("q"),
-		key.WithHelp("Q", "Quit"),
+		key.WithKeys("Q", "q"),
+		key.WithHelp("    Q", "Quit"),
 	),
 }
+
+// ChessMoveMsg is a message containing a received chess move.
+type ChessMoveMsg string
 
 // GameModel represents the state of the game view.
 type GameModel struct {
@@ -40,13 +49,16 @@ type GameModel struct {
 	height int
 
 	// UI state
-	keys playKeyMap
+	keys gameKeyMap
 
 	// Game state
 	peer          string
 	currentGameID int
 	game          *database.Game
 	network       *multiplayer.GameNetwork
+	chessGame     *chess.Game
+	incomingMoves chan string
+	turn          int
 }
 
 // NewGameModel creates a new GameModel.
@@ -54,16 +66,20 @@ func NewGameModel(width, height int, peer string, currentGameID int, network *mu
 	return GameModel{
 		width:         width,
 		height:        height,
+		keys:          defaultGameKeyMap,
 		peer:          peer,
 		currentGameID: currentGameID,
 		network:       network,
+		chessGame:     chess.NewGame(chess.UseNotation(chess.UCINotation{})),
+		incomingMoves: make(chan string),
+		turn:          0,
 	}
 }
 
 // Init initializes the GameModel.
 func (m GameModel) Init() tea.Cmd {
 	ClearScreen()
-	return tea.Batch(textinput.Blink, m.getGame())
+	return tea.Batch(textinput.Blink, m.getGame(), m.getMoves())
 }
 
 // Update handles incoming messages and updates the GameModel.
@@ -77,6 +93,13 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleWindowSize(msg)
 	case tea.KeyMsg:
 		return m.handleKeyPress(msg)
+	case ChessMoveMsg:
+		m.turn++
+		err := m.chessGame.MoveStr(string(msg))
+		if err != nil {
+			fmt.Println("Error applying move:", err)
+		}
+		return m, m.getMoves()
 	case database.Game:
 		return m.handleGetGameResponse(msg)
 	}
@@ -90,13 +113,18 @@ func (m GameModel) View() string {
 
 	var content string
 	if m.game != nil {
-		otherPlayer := ""
-		if m.peer == "peer-1" {
-			otherPlayer = m.game.Player2.Username
-		} else {
-			otherPlayer = m.game.Player1.Username
+		yourTurn := ""
+		if m.turn%2 == 0 && m.peer == "peer-2" || m.turn%2 == 1 && m.peer == "peer-1" {
+			yourTurn = "[YOUR TURN]"
 		}
-		content = fmt.Sprintf("You're playing versus %s", otherPlayer)
+
+		content = fmt.Sprintf("%s vs %s\n%s\n\n%s\n%s",
+			m.game.Player1.Username,
+			m.game.Player2.Username,
+			lipgloss.NewStyle().Foreground(highlightColor).Render(yourTurn),
+			m.chessGame.Position().Board().Draw(),
+			m.chessGame.String(),
+		)
 	}
 
 	windowContent := m.buildWindowContent(content, formWidth)
@@ -128,6 +156,15 @@ func (m GameModel) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.GoLogout):
 		return m, logout(m.width, m.height+1)
+	case key.Matches(msg, m.keys.RandomMove):
+		if m.turn%2 == 0 && m.peer == "peer-2" || m.turn%2 == 1 && m.peer == "peer-1" {
+			moves := m.chessGame.ValidMoves()
+			move := moves[rand.Intn(len(moves))]
+			m.network.Server.Send(network.NetworkID(m.peer), []byte(move.String()))
+			m.chessGame.MoveStr(move.String())
+			m.turn++
+		}
+		return m, nil
 	case key.Matches(msg, m.keys.Quit):
 		return m, tea.Quit
 	}
@@ -145,6 +182,10 @@ func (m GameModel) buildWindowContent(content string, formWidth int) string {
 }
 
 func (m GameModel) renderNavigationButtons() string {
+	randomMoveKey := fmt.Sprintf("%s %s",
+		altCodeStyle.Render(m.keys.RandomMove.Help().Key),
+		m.keys.RandomMove.Help().Desc)
+
 	logoutKey := fmt.Sprintf("%s %s",
 		altCodeStyle.Render(m.keys.GoLogout.Help().Key),
 		m.keys.GoLogout.Help().Desc)
@@ -155,6 +196,7 @@ func (m GameModel) renderNavigationButtons() string {
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
+		randomMoveKey,
 		logoutKey,
 		quitKey,
 	)
@@ -162,7 +204,7 @@ func (m GameModel) renderNavigationButtons() string {
 
 func (m *GameModel) handleGetGameResponse(msg database.Game) (tea.Model, tea.Cmd) {
 	m.game = &msg
-	if m.peer == "peer-1" {
+	if m.peer == "peer-2" {
 		m.network.Peer = msg.IP2
 	} else {
 		m.network.Peer = msg.IP1
@@ -193,7 +235,7 @@ func (m *GameModel) getGame() tea.Cmd {
 		}
 
 		// Establish peer connection
-		if m.peer == "peer-1" {
+		if m.peer == "peer-2" {
 			if game.IP2 != "" {
 				remote := game.IP2
 				go m.network.Server.AddPeer("peer-2", remote)
@@ -206,5 +248,17 @@ func (m *GameModel) getGame() tea.Cmd {
 		}
 
 		return game
+	}
+}
+
+func (m *GameModel) getMoves() tea.Cmd {
+	m.network.Server.OnReceiveFn = func(msg network.Message) {
+		moveStr := string(msg.Payload)
+		m.incomingMoves <- moveStr
+	}
+
+	return func() tea.Msg {
+		move := <-m.incomingMoves
+		return ChessMoveMsg(move)
 	}
 }
