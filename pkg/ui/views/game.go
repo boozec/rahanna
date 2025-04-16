@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
 
 	"github.com/boozec/rahanna/internal/api/database"
 	"github.com/boozec/rahanna/pkg/ui/multiplayer"
@@ -197,21 +195,13 @@ func (m *GameModel) getGame() tea.Cmd {
 		// Establish peer connection
 		if m.peer == "peer-1" {
 			if game.IP2 != "" {
-				ipParts := strings.Split(game.IP2, ":")
-				if len(ipParts) == 2 {
-					remoteIP := ipParts[0]
-					remotePortInt, _ := strconv.Atoi(ipParts[1])
-					go m.network.Server.AddPeer("peer-2", remoteIP, remotePortInt)
-				}
+				remote := game.IP2
+				go m.network.Server.AddPeer("peer-2", remote)
 			}
 		} else {
 			if game.IP1 != "" {
-				ipParts := strings.Split(game.IP1, ":")
-				if len(ipParts) == 2 {
-					remoteIP := ipParts[0]
-					remotePortInt, _ := strconv.Atoi(ipParts[1])
-					go m.network.Server.AddPeer("peer-1", remoteIP, remotePortInt)
-				}
+				remote := game.IP1
+				go m.network.Server.AddPeer("peer-1", remote)
 			}
 		}
 

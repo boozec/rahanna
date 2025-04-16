@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/boozec/rahanna/internal/api/database"
+	"github.com/boozec/rahanna/internal/logger"
 	"github.com/boozec/rahanna/internal/network"
 	"github.com/boozec/rahanna/pkg/ui/multiplayer"
 	"github.com/charmbracelet/bubbles/key"
@@ -267,10 +268,11 @@ func (m *PlayModel) handlePlayResponse(msg playResponse) (tea.Model, tea.Cmd) {
 	} else {
 		m.playName = msg.Ok.Name
 		m.currentGameId = msg.Ok.GameID
-
-		m.network = multiplayer.NewGameNetwork("peer-1", msg.Ok.IP, msg.Ok.Port, func() {
-			close(start)
-		})
+		logger, _ := logger.GetLogger()
+		m.network = multiplayer.NewGameNetwork("peer-1", fmt.Sprintf("%s:%d", msg.Ok.IP, msg.Ok.Port), func() error {
+			start <- 1
+			return nil
+		}, logger)
 	}
 
 	return m, nil
@@ -284,7 +286,11 @@ func (m *PlayModel) handleGameResponse(msg database.Game) (tea.Model, tea.Cmd) {
 	if len(ip) == 2 {
 		localIP := ip[0]
 		localPort, _ := strconv.ParseInt(ip[1], 10, 32)
-		network := multiplayer.NewGameNetwork("peer-2", localIP, int(localPort), func() {})
+
+		logger, _ := logger.GetLogger()
+		network := multiplayer.NewGameNetwork("peer-2", fmt.Sprintf("%s:%d", localIP, localPort), func() error {
+			return nil
+		}, logger)
 
 		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, "peer-2", m.game.ID, network))
 	}

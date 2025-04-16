@@ -3,133 +3,81 @@ package network
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
 	"time"
 
-	"github.com/boozec/rahanna/internal/logger"
 	"go.uber.org/zap"
 )
 
-// PeerInfo represents a peer's ID and IP.
-type PeerInfo struct {
-	ID   string `json:"id"`
-	IP   string `json:"ip"`
-	Port int    `json:"port"`
-}
-
-// Message represents a structured message.
+// `Message` represents a structured message on this network.
 type Message struct {
-	Type      string   `json:"type"`
-	Payload   []byte   `json:"payload"`
-	Source    PeerInfo `json:"source"`
-	Target    PeerInfo `json:"target"`
-	Timestamp int64    `json:"timestamp"`
+	Timestamp int64  `json:"timestamp"`
+	Source    string `json:"source"`
+	Payload   []byte `json:"payload"`
 }
 
-type NetworkCallback func(msg Message)
+// A network ID is represented by a string
+type NetworkID string
+
+// This type represents the function that is called every time a new message
+// arrives to the server.
+type NetworkMessageReceiveFunc func(msg Message)
+
+// This type represent the callback function invokes every new handshake between
+// two peers
+type NetworkHandshakeFunc func() error
+
+func DefaultHandshake() error {
+	return nil
+}
+
+// Network options to define on new `TCPNetwork`
+type TCPNetworkOpts struct {
+	ListenAddr  string
+	RetryDelay  time.Duration
+	HandshakeFn NetworkHandshakeFunc
+	OnReceiveFn NetworkMessageReceiveFunc
+	Logger      *zap.Logger
+}
 
 // TCPNetwork represents a full-duplex TCP peer.
 type TCPNetwork struct {
-	localPeer   PeerInfo
-	connections map[string]net.Conn
-	listener    net.Listener
-	callbacks   map[string]NetworkCallback
-	callbacksMu sync.RWMutex
-	isConnected bool
-	retryDelay  time.Duration
-	logger      *zap.Logger
 	sync.Mutex
+	TCPNetworkOpts
+
+	id          NetworkID
+	listener    net.Listener
+	connections map[NetworkID]net.Conn
 }
 
-// initializes a TCP peer
-func NewTCPNetwork(localID, localIP string, localPort int, onReceive func()) *TCPNetwork {
+// Initiliaze a new TCP network
+func NewTCPNetwork(localID NetworkID, opts TCPNetworkOpts) *TCPNetwork {
 	n := &TCPNetwork{
-		localPeer:   PeerInfo{ID: localID, IP: localIP, Port: localPort},
-		connections: make(map[string]net.Conn),
-		callbacks:   make(map[string]NetworkCallback),
-		isConnected: false,
-		retryDelay:  2 * time.Second,
-		logger:      logger.InitLogger("rahanna.log"),
+		TCPNetworkOpts: opts,
+		id:             localID,
+		connections:    make(map[NetworkID]net.Conn),
 	}
 
-	go n.startServer(onReceive)
+	go n.startServer()
 
 	return n
 }
 
+// Close listener' connection
+func (n *TCPNetwork) Close() error {
+	return n.listener.Close()
+}
+
 // Add a new peer connection to the local peer
-func (n *TCPNetwork) AddPeer(remoteID string, remoteIP string, remotePort int) {
-	go n.retryConnect(remoteID, remoteIP, remotePort)
+func (n *TCPNetwork) AddPeer(remoteID NetworkID, addr string) {
+	go n.retryConnect(remoteID, addr)
 }
 
-// startServer starts a TCP server to accept connections.
-func (n *TCPNetwork) startServer(callback func()) {
-	address := fmt.Sprintf("%s:%d", n.localPeer.IP, n.localPeer.Port)
-	listener, err := net.Listen("tcp", address)
-	if err != nil {
-		n.logger.Sugar().Errorf("failed to start server: %v", err)
-		return
-	}
-	n.listener = listener
-	n.logger.Sugar().Infof("server started on %s\n", address)
-
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			n.logger.Sugar().Errorf("failed to accept connection: %v\n", err)
-			continue
-		}
-
-		remoteAddr := conn.RemoteAddr().String()
-		n.Lock()
-		n.connections[remoteAddr] = conn
-		callback()
-		n.Unlock()
-		n.isConnected = true
-		n.retryDelay = 2 * time.Second
-
-		n.logger.Sugar().Infof("connected to remote peer %s\n", remoteAddr)
-		go n.listenForMessages(conn)
-	}
-}
-
-// retryConnect attempts to connect to a remote peer.
-func (n *TCPNetwork) retryConnect(remoteID, remoteIP string, remotePort int) {
-	for {
-		n.Lock()
-		_, exists := n.connections[remoteID]
-		n.Unlock()
-
-		if exists {
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
-		address := fmt.Sprintf("%s:%d", remoteIP, remotePort)
-		conn, err := net.Dial("tcp", address)
-
-		if err != nil {
-			n.logger.Sugar().Errorf("failed to connect to %s: %v. Retrying in %v...", remoteID, err, n.retryDelay)
-			time.Sleep(n.retryDelay)
-			if n.retryDelay < 30*time.Second {
-				n.retryDelay *= 2
-			}
-			continue
-		}
-
-		n.Lock()
-		n.connections[remoteID] = conn
-		n.Unlock()
-		n.logger.Sugar().Infof("successfully connected to peer %s!", remoteID)
-
-		go n.listenForMessages(conn)
-	}
-}
-
-// Send sends a message to a specified remote peer.
-func (n *TCPNetwork) Send(remoteID, messageType string, payload []byte) error {
+// Send methods is used to send a message to a specified remote peer
+func (n *TCPNetwork) Send(remoteID NetworkID, payload []byte) error {
 	n.Lock()
 	conn, exists := n.connections[remoteID]
 	n.Unlock()
@@ -139,10 +87,8 @@ func (n *TCPNetwork) Send(remoteID, messageType string, payload []byte) error {
 	}
 
 	msg := Message{
-		Type:      messageType,
 		Payload:   payload,
-		Source:    n.localPeer,
-		Target:    PeerInfo{ID: remoteID},
+		Source:    n.listener.Addr().String(),
 		Timestamp: time.Now().Unix(),
 	}
 
@@ -153,11 +99,13 @@ func (n *TCPNetwork) Send(remoteID, messageType string, payload []byte) error {
 
 	_, err = conn.Write(append(data, '\n'))
 	if err != nil {
-		n.logger.Sugar().Errorf("failed to send message to %s: %v. Reconnecting...", remoteID, err)
+		n.Logger.Sugar().Errorf("failed to send message to %s: %v. Reconnecting...", remoteID, err)
 		n.Lock()
 		delete(n.connections, remoteID)
 		n.Unlock()
-		go n.retryConnect(remoteID, "", 0)
+
+		go n.retryConnect(remoteID, "")
+
 		return fmt.Errorf("failed to send message: %v", err)
 	}
 
@@ -165,10 +113,56 @@ func (n *TCPNetwork) Send(remoteID, messageType string, payload []byte) error {
 }
 
 // RegisterHandler registers a callback for a message type.
-func (n *TCPNetwork) RegisterHandler(messageType string, callback NetworkCallback) {
-	n.callbacksMu.Lock()
-	n.callbacks[messageType] = callback
-	n.callbacksMu.Unlock()
+func (n *TCPNetwork) RegisterHandler(callback NetworkMessageReceiveFunc) {
+	n.OnReceiveFn = callback
+}
+
+// startServer starts a TCP server to accept connections.
+func (n *TCPNetwork) startServer() error {
+	var err error
+
+	n.listener, err = net.Listen("tcp", n.ListenAddr)
+	if err != nil {
+		n.Logger.Sugar().Errorf("failed to start server: %v", err)
+		return err
+	}
+
+	go n.listenLoop()
+
+	n.Logger.Sugar().Infof("server started on %s\n", n.ListenAddr)
+
+	return nil
+
+}
+
+func (n *TCPNetwork) listenLoop() error {
+	for {
+		conn, err := n.listener.Accept()
+		if errors.Is(err, net.ErrClosed) {
+			n.Logger.Sugar().Errorf("connection is closed in such a way: %v\n", err)
+			return err
+		}
+
+		if err != nil {
+			n.Logger.Sugar().Errorf("failed to accept connection: %v\n", err)
+			continue
+		}
+
+		remoteAddr := conn.RemoteAddr().String()
+		n.Lock()
+		n.connections[NetworkID(remoteAddr)] = conn
+		if err := n.HandshakeFn(); err != nil {
+			n.Logger.Sugar().Errorf("error on handshaking: %v\n", err)
+			return err
+		}
+		n.Unlock()
+		n.RetryDelay = 2 * time.Second
+
+		n.Logger.Sugar().Infof("connected to remote peer %s\n", remoteAddr)
+
+		// Read loop
+		go n.listenForMessages(conn)
+	}
 }
 
 // listenForMessages listens for incoming messages.
@@ -178,12 +172,14 @@ func (n *TCPNetwork) listenForMessages(conn net.Conn) {
 	for {
 		data, err := reader.ReadBytes('\n')
 		if err != nil {
-			n.logger.Debug("connection lost. Reconnecting...")
+			n.Logger.Debug("connection lost. Reconnecting...")
 			n.Lock()
+
+			// FIXME: a better way to re-establish the connection between peer
 			for id, c := range n.connections {
 				if c == conn {
 					delete(n.connections, id)
-					go n.retryConnect(id, "", 0)
+					go n.retryConnect(id, "")
 					break
 				}
 			}
@@ -193,22 +189,48 @@ func (n *TCPNetwork) listenForMessages(conn net.Conn) {
 
 		var message Message
 		if err := json.Unmarshal(data, &message); err != nil {
-			n.logger.Sugar().Errorf("failed to unmarshal message: %v\n", err)
+			n.Logger.Sugar().Errorf("failed to unmarshal message: %v\n", err)
 			continue
 		}
 
-		n.callbacksMu.RLock()
-		callback, exists := n.callbacks[message.Type]
-		n.callbacksMu.RUnlock()
-
-		if exists {
-			go callback(message)
-		}
+		n.OnReceiveFn(message)
 	}
 }
 
-func (n *TCPNetwork) IsConnected() bool {
-	n.Lock()
-	defer n.Unlock()
-	return n.isConnected
+// retryConnect attempts to connect to a remote peer.
+func (n *TCPNetwork) retryConnect(remoteID NetworkID, addr string) {
+	for {
+		n.Lock()
+		_, exists := n.connections[remoteID]
+		n.Unlock()
+
+		if exists {
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		conn, err := net.Dial("tcp", addr)
+
+		if err != nil {
+			n.Logger.Sugar().Errorf("failed to connect to %s: %v. Retrying in %v...", remoteID, err, n.RetryDelay)
+			time.Sleep(n.RetryDelay)
+			if n.RetryDelay < 30*time.Second {
+				n.RetryDelay *= 2
+			} else {
+				n.Lock()
+				delete(n.connections, remoteID)
+				n.Unlock()
+				n.Logger.Sugar().Infof("removed %s connection", remoteID)
+				return
+			}
+			continue
+		}
+
+		n.Lock()
+		n.connections[remoteID] = conn
+		n.Unlock()
+		n.Logger.Sugar().Infof("successfully connected to peer %s!", remoteID)
+
+		go n.listenForMessages(conn)
+	}
 }
