@@ -176,6 +176,7 @@ func (m GameModel) handleUpdateMovesListMsg() GameModel {
 		m.movesList.Select(0)
 		m.movesList.SetShowFilter(true)
 		m.movesList.SetFilteringEnabled(true)
+		m.movesList.ResetFilter()
 	}
 	return m
 }
