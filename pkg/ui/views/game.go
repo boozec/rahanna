@@ -96,7 +96,15 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m, cmd = m.handleDatabaseGameMsg(msg)
 		cmds = append(cmds, cmd, m.updateMovesListCmd())
 	case EndGameMsg:
-		return m, nil
+		if msg.abandoned {
+			if m.peer == "peer-2" {
+				m.game.Outcome = "1-0"
+			} else {
+				m.game.Outcome = "0-1"
+			}
+			m, cmd = m.handleDatabaseGameMsg(*m.game)
+			cmds = append(cmds, cmd)
+		}
 	case error:
 		m.err = msg
 	}
@@ -121,7 +129,7 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					cmds = append(cmds, m.getMoves(), m.updateMovesListCmd())
 
 					if m.chessGame.Outcome() != chess.NoOutcome {
-						cmds = append(cmds, m.endGame())
+						cmds = append(cmds, m.endGame(m.chessGame.Outcome().String()))
 					}
 				}
 			}

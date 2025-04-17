@@ -3,6 +3,7 @@ package views
 import (
 	"fmt"
 
+	"github.com/boozec/rahanna/internal/network"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -10,45 +11,63 @@ import (
 
 // gameKeyMap defines the key bindings for the game view.
 type gameKeyMap struct {
-	GoLogout key.Binding
-	Quit     key.Binding
+	Abandon key.Binding
+	Quit    key.Binding
+	Exit    key.Binding
 }
 
 // defaultGameKeyMap provides the default key bindings for the game view.
 var defaultGameKeyMap = gameKeyMap{
-	GoLogout: key.NewBinding(
-		key.WithKeys("alt+Q", "alt+q"),
-		key.WithHelp("Alt+Q", "Logout"),
+	Abandon: key.NewBinding(
+		key.WithKeys("A", "a"),
+		key.WithHelp("     A", "Abandon"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("Q", "q"),
-		key.WithHelp("    Q", "Quit"),
+		key.WithHelp("     Q", "Quit"),
+	),
+	Exit: key.NewBinding(
+		key.WithKeys("ctrl+c", "ctrl+C"),
+		key.WithHelp("CTRL+C", "Exit"),
 	),
 }
 
 func (m GameModel) handleKeyMsg(msg tea.KeyMsg) (GameModel, tea.Cmd) {
 	switch {
-	case key.Matches(msg, m.keys.GoLogout):
-		return m, logout(m.width, m.height+1)
+	case key.Matches(msg, m.keys.Abandon):
+		var outcome string
+		if m.peer == "peer-2" {
+			outcome = "0-1"
+		} else {
+			outcome = "1-0"
+		}
+
+		m.network.Server.Send(network.NetworkID(m.peer), []byte("🏳️"))
+		return m, m.endGame(outcome)
 	case key.Matches(msg, m.keys.Quit):
-		return m, tea.Quit
+		return m, SwitchModelCmd(NewPlayModel(m.width, m.height))
 	}
 
 	return m, nil
 }
 
 func (m GameModel) renderNavigationButtons() string {
-	logoutKey := fmt.Sprintf("%s %s",
-		altCodeStyle.Render(m.keys.GoLogout.Help().Key),
-		m.keys.GoLogout.Help().Desc)
+	abandonKey := fmt.Sprintf("%s %s",
+		altCodeStyle.Render(m.keys.Abandon.Help().Key),
+		m.keys.Abandon.Help().Desc)
 
 	quitKey := fmt.Sprintf("%s %s",
 		altCodeStyle.Render(m.keys.Quit.Help().Key),
 		m.keys.Quit.Help().Desc)
 
+	exitKey := fmt.Sprintf("%s %s",
+		altCodeStyle.Render(m.keys.Exit.Help().Key),
+		m.keys.Exit.Help().Desc)
+
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
-		logoutKey,
+		abandonKey,
 		quitKey,
+		exitKey,
 	)
 }

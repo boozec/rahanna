@@ -68,9 +68,11 @@ func (m *GameModel) getGame() tea.Cmd {
 	}
 }
 
-type EndGameMsg struct{}
+type EndGameMsg struct {
+	abandoned bool
+}
 
-func (m *GameModel) endGame() tea.Cmd {
+func (m *GameModel) endGame(outcome string) tea.Cmd {
 	return func() tea.Msg {
 		var game database.Game
 
@@ -82,7 +84,7 @@ func (m *GameModel) endGame() tea.Cmd {
 
 		// Prepare request payload
 		payload, err := json.Marshal(map[string]string{
-			"outcome": m.chessGame.Outcome().String(),
+			"outcome": outcome,
 		})
 
 		// Send API request

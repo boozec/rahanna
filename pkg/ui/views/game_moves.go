@@ -25,12 +25,15 @@ func (i item) FilterValue() string { return i.title }
 
 func (m *GameModel) getMoves() tea.Cmd {
 	m.network.Server.OnReceiveFn = func(msg network.Message) {
-		moveStr := string(msg.Payload)
-		m.incomingMoves <- moveStr
+		payload := string(msg.Payload)
+		m.incomingMoves <- payload
 	}
 
 	return func() tea.Msg {
 		move := <-m.incomingMoves
+		if move == "🏳️" {
+			return EndGameMsg{abandoned: true}
+		}
 		return ChessMoveMsg(move)
 	}
 }
@@ -75,7 +78,7 @@ func (m GameModel) handleChessMoveMsg(msg ChessMoveMsg) (GameModel, tea.Cmd) {
 	}
 
 	if m.chessGame.Outcome() != chess.NoOutcome {
-		cmds = append(cmds, m.endGame())
+		cmds = append(cmds, m.endGame(m.chessGame.Outcome().String()))
 	}
 
 	return m, tea.Batch(cmds...)
