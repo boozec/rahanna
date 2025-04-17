@@ -3,7 +3,7 @@ package views
 import (
 	"fmt"
 
-	"github.com/boozec/rahanna/internal/network"
+	"github.com/boozec/rahanna/pkg/p2p"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/notnil/chess"
@@ -24,7 +24,7 @@ func (i item) Description() string { return "" }
 func (i item) FilterValue() string { return i.title }
 
 func (m *GameModel) getMoves() tea.Cmd {
-	m.network.AddReceiveFunction(func(msg network.Message) {
+	m.network.AddReceiveFunction(func(msg p2p.Message) {
 		payload := string(msg.Payload)
 		m.incomingMoves <- payload
 	})

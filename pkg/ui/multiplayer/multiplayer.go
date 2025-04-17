@@ -3,36 +3,36 @@ package multiplayer
 import (
 	"time"
 
-	"github.com/boozec/rahanna/internal/network"
+	"github.com/boozec/rahanna/pkg/p2p"
 	"go.uber.org/zap"
 )
 
 type GameNetwork struct {
-	server *network.TCPNetwork
-	me     network.NetworkID
-	peer   network.NetworkID
+	server *p2p.TCPNetwork
+	me     p2p.NetworkID
+	peer   p2p.NetworkID
 }
 
 // Wrapper to a `TCPNetwork`
-func NewGameNetwork(localID string, address string, onHandshake network.NetworkHandshakeFunc, logger *zap.Logger) *GameNetwork {
-	opts := network.TCPNetworkOpts{
+func NewGameNetwork(localID string, address string, onHandshake p2p.NetworkHandshakeFunc, logger *zap.Logger) *GameNetwork {
+	opts := p2p.TCPNetworkOpts{
 		ListenAddr:  address,
 		HandshakeFn: onHandshake,
 		RetryDelay:  time.Second * 2,
 		Logger:      logger,
 	}
-	server := network.NewTCPNetwork(network.NetworkID(localID), opts)
+	server := p2p.NewTCPNetwork(p2p.NetworkID(localID), opts)
 	return &GameNetwork{
 		server: server,
-		me:     network.NetworkID(localID),
+		me:     p2p.NetworkID(localID),
 	}
 }
 
-func (n *GameNetwork) Peer() network.NetworkID {
+func (n *GameNetwork) Peer() p2p.NetworkID {
 	return n.peer
 }
 
-func (n *GameNetwork) Me() network.NetworkID {
+func (n *GameNetwork) Me() p2p.NetworkID {
 	return n.me
 }
 
@@ -40,11 +40,11 @@ func (n *GameNetwork) Send(payload []byte) error {
 	return n.server.Send(n.peer, payload)
 }
 
-func (n *GameNetwork) AddPeer(remoteID network.NetworkID, addr string) {
+func (n *GameNetwork) AddPeer(remoteID p2p.NetworkID, addr string) {
 	n.peer = remoteID
 	n.server.AddPeer(remoteID, addr)
 }
 
-func (n *GameNetwork) AddReceiveFunction(f network.NetworkMessageReceiveFunc) {
+func (n *GameNetwork) AddReceiveFunction(f p2p.NetworkMessageReceiveFunc) {
 	n.server.OnReceiveFn = f
 }

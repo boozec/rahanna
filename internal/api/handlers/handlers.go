@@ -9,7 +9,7 @@ import (
 	"github.com/boozec/rahanna/internal/api/auth"
 	"github.com/boozec/rahanna/internal/api/database"
 	"github.com/boozec/rahanna/internal/logger"
-	"github.com/boozec/rahanna/internal/network"
+	"github.com/boozec/rahanna/pkg/p2p"
 	"github.com/gorilla/mux"
 	"gorm.io/gorm"
 )
@@ -116,7 +116,7 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 
 	db, _ := database.GetDb()
 
-	name := network.NewSession()
+	name := p2p.NewSession()
 	play := database.Game{
 		Player1ID: claims.UserID,
 		Player2ID: nil,

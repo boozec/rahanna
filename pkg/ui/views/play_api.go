@@ -10,7 +10,7 @@ import (
 
 	"github.com/boozec/rahanna/internal/api/database"
 	"github.com/boozec/rahanna/internal/logger"
-	"github.com/boozec/rahanna/internal/network"
+	"github.com/boozec/rahanna/pkg/p2p"
 	"github.com/boozec/rahanna/pkg/ui/multiplayer"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -68,7 +68,7 @@ func (m *PlayModel) handleGameResponse(msg database.Game) (tea.Model, tea.Cmd) {
 		localPort, _ := strconv.ParseInt(ip[1], 10, 32)
 
 		logger, _ := logger.GetLogger()
-		network := multiplayer.NewGameNetwork("peer-2", fmt.Sprintf("%s:%d", localIP, localPort), network.DefaultHandshake, logger)
+		network := multiplayer.NewGameNetwork("peer-2", fmt.Sprintf("%s:%d", localIP, localPort), p2p.DefaultHandshake, logger)
 
 		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, m.game.ID, network))
 	}
@@ -92,12 +92,12 @@ func (m *PlayModel) newGameCallback() tea.Cmd {
 		}
 
 		// Set up network connection
-		port, err := network.GetRandomAvailablePort()
+		port, err := p2p.GetRandomAvailablePort()
 		if err != nil {
 			return playResponse{Error: err.Error()}
 		}
 
-		ip := network.GetOutboundIP().String()
+		ip := p2p.GetOutboundIP().String()
 		// FIXME: ip
 		ip = "0.0.0.0"
 
@@ -149,12 +149,12 @@ func (m PlayModel) enterGame() tea.Cmd {
 		}
 
 		// Set up network connection
-		port, err := network.GetRandomAvailablePort()
+		port, err := p2p.GetRandomAvailablePort()
 		if err != nil {
 			return playResponse{Error: err.Error()}
 		}
 
-		ip := network.GetOutboundIP().String()
+		ip := p2p.GetOutboundIP().String()
 		// FIXME: ip
 		ip = "0.0.0.0"
 
