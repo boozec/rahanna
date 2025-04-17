@@ -3,10 +3,10 @@ package views
 import (
 	"fmt"
 
-	"github.com/boozec/rahanna/internal/network"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/notnil/chess"
 )
 
 // gameKeyMap defines the key bindings for the game view.
@@ -36,13 +36,13 @@ func (m GameModel) handleKeyMsg(msg tea.KeyMsg) (GameModel, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.Abandon):
 		var outcome string
-		if m.peer == "peer-2" {
-			outcome = "0-1"
+		if m.network.Me() == "peer-1" {
+			outcome = string(chess.BlackWon)
 		} else {
-			outcome = "1-0"
+			outcome = string(chess.WhiteWon)
 		}
 
-		m.network.Server.Send(network.NetworkID(m.peer), []byte("🏳️"))
+		m.network.Send([]byte("🏳️"))
 		return m, m.endGame(outcome)
 	case key.Matches(msg, m.keys.Quit):
 		return m, SwitchModelCmd(NewPlayModel(m.width, m.height))

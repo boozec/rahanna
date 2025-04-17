@@ -14,7 +14,8 @@ import (
 
 func main() {
 	database.InitDb(os.Getenv("DATABASE_URL"))
-	log := logger.InitLogger("rahanna.log")
+	log := logger.InitLogger("rahanna.log", false)
+	
 
 	r := mux.NewRouter()
 	r.HandleFunc("/auth/register", handlers.RegisterUser).Methods(http.MethodPost)

@@ -21,6 +21,7 @@ type NewGameRequest struct {
 func RegisterUser(w http.ResponseWriter, r *http.Request) {
 	log, _ := logger.GetLogger()
 	log.Info("POST /auth/register")
+
 	var user database.User
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
@@ -35,9 +36,7 @@ func RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 	var storedUser database.User
 	db, _ := database.GetDb()
-	result := db.Where("username = ?", user.Username).First(&storedUser)
-
-	if result.Error == nil {
+	if result := db.Where("username = ?", user.Username).First(&storedUser); result.Error == nil {
 		JsonError(&w, "user with this username already exists")
 		return
 	}
@@ -49,8 +48,7 @@ func RegisterUser(w http.ResponseWriter, r *http.Request) {
 	}
 	user.Password = string(hashedPassword)
 
-	result = db.Create(&user)
-	if result.Error != nil {
+	if result := db.Create(&user); result.Error != nil {
 		JsonError(&w, result.Error.Error())
 		return
 	}
@@ -67,6 +65,7 @@ func RegisterUser(w http.ResponseWriter, r *http.Request) {
 func LoginUser(w http.ResponseWriter, r *http.Request) {
 	log, _ := logger.GetLogger()
 	log.Info("POST /auth/login")
+
 	var inputUser database.User
 	err := json.NewDecoder(r.Body).Decode(&inputUser)
 	if err != nil {
@@ -77,8 +76,7 @@ func LoginUser(w http.ResponseWriter, r *http.Request) {
 	var storedUser database.User
 
 	db, _ := database.GetDb()
-	result := db.Where("username = ?", inputUser.Username).First(&storedUser)
-	if result.Error != nil {
+	if result := db.Where("username = ?", inputUser.Username).First(&storedUser); result.Error != nil {
 		JsonError(&w, "invalid credentials")
 		return
 	}
@@ -100,10 +98,10 @@ func LoginUser(w http.ResponseWriter, r *http.Request) {
 func NewPlay(w http.ResponseWriter, r *http.Request) {
 	log, _ := logger.GetLogger()
 	log.Info("POST /play")
-	claims, err := auth.ValidateJWT(r.Header.Get("Authorization"))
 
-	if err != nil {
-		JsonError(&w, err.Error())
+	claims, ok := r.Context().Value("claims").(*auth.Claims)
+	if !ok {
+		JsonError(&w, "claims not found")
 		return
 	}
 
@@ -112,11 +110,6 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		JsonError(&w, err.Error())
-		return
-	}
-
-	if err != nil {
 		JsonError(&w, err.Error())
 		return
 	}
@@ -133,8 +126,7 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 		Outcome:   "*",
 	}
 
-	result := db.Create(&play)
-	if result.Error != nil {
+	if result := db.Create(&play); result.Error != nil {
 		JsonError(&w, result.Error.Error())
 		return
 	}
@@ -145,10 +137,10 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 func EnterGame(w http.ResponseWriter, r *http.Request) {
 	log, _ := logger.GetLogger()
 	log.Info("POST /enter-game")
-	claims, err := auth.ValidateJWT(r.Header.Get("Authorization"))
 
-	if err != nil {
-		JsonError(&w, err.Error())
+	claims, ok := r.Context().Value("claims").(*auth.Claims)
+	if !ok {
+		JsonError(&w, "claims not found")
 		return
 	}
 
@@ -162,17 +154,11 @@ func EnterGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err != nil {
-		JsonError(&w, err.Error())
-		return
-	}
-
 	db, _ := database.GetDb()
 
 	var game database.Game
 
-	result := db.Where("name = ? AND player2_id IS NULL", payload.Name).First(&game)
-	if result.Error != nil {
+	if result := db.Where("name = ? AND player2_id IS NULL", payload.Name).First(&game); result.Error != nil {
 		JsonError(&w, result.Error.Error())
 		return
 	}
@@ -186,13 +172,9 @@ func EnterGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result = db.Where("id = ?", game.ID).
-		Preload("Player1", func(db *gorm.DB) *gorm.DB {
-			return db.Omit("Password")
-		}).
-		Preload("Player2", func(db *gorm.DB) *gorm.DB {
-			return db.Omit("Password")
-		}).
+	result := db.Where("id = ?", game.ID).
+		Preload("Player1", auth.OmitPassword).
+		Preload("Player2", auth.OmitPassword).
 		First(&game)
 
 	if result.Error != nil {
@@ -207,17 +189,16 @@ func AllPlay(w http.ResponseWriter, r *http.Request) {
 	log, _ := logger.GetLogger()
 	log.Info("GET /play")
 
-	claims, err := auth.ValidateJWT(r.Header.Get("Authorization"))
-
-	if err != nil {
-		JsonError(&w, err.Error())
+	claims, ok := r.Context().Value("claims").(*auth.Claims)
+	if !ok {
+		JsonError(&w, "claims not found")
 		return
 	}
 
 	db, _ := database.GetDb()
 	var games []database.Game
 
-	result := db.Where("player1_id = ? OR player2_id = ?", claims.UserID, claims.UserID).
+	if result := db.Where("player1_id = ? OR player2_id = ?", claims.UserID, claims.UserID).
 		Preload("Player1", func(db *gorm.DB) *gorm.DB {
 			return db.Omit("Password")
 		}).
@@ -225,9 +206,7 @@ func AllPlay(w http.ResponseWriter, r *http.Request) {
 			return db.Omit("Password")
 		}).
 		Order("updated_at DESC").
-		Find(&games)
-
-	if result.Error != nil {
+		Find(&games); result.Error != nil {
 		JsonError(&w, result.Error.Error())
 		return
 	}
@@ -241,26 +220,23 @@ func GetGameId(w http.ResponseWriter, r *http.Request) {
 	id := vars["id"]
 	log.Info(fmt.Sprintf("GET /play/%s", id))
 
-	claims, err := auth.ValidateJWT(r.Header.Get("Authorization"))
-
-	if err != nil {
-		JsonError(&w, err.Error())
+	claims, ok := r.Context().Value("claims").(*auth.Claims)
+	if !ok {
+		JsonError(&w, "claims not found")
 		return
 	}
 
 	db, _ := database.GetDb()
 	var game database.Game
 
-	result := db.Where("id = ? AND (player1_id = ? OR player2_id = ?)", id, claims.UserID, claims.UserID).
+	if result := db.Where("id = ? AND (player1_id = ? OR player2_id = ?)", id, claims.UserID, claims.UserID).
 		Preload("Player1", func(db *gorm.DB) *gorm.DB {
 			return db.Omit("Password")
 		}).
 		Preload("Player2", func(db *gorm.DB) *gorm.DB {
 			return db.Omit("Password")
 		}).
-		First(&game)
-
-	if result.Error != nil {
+		First(&game); result.Error != nil {
 		JsonError(&w, result.Error.Error())
 		return
 	}
@@ -274,10 +250,9 @@ func EndGame(w http.ResponseWriter, r *http.Request) {
 	id := vars["id"]
 	log.Info(fmt.Sprintf("POST /play/%s/end", id))
 
-	claims, err := auth.ValidateJWT(r.Header.Get("Authorization"))
-
-	if err != nil {
-		JsonError(&w, err.Error())
+	claims, ok := r.Context().Value("claims").(*auth.Claims)
+	if !ok {
+		JsonError(&w, "claims not found")
 		return
 	}
 
@@ -290,18 +265,15 @@ func EndGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err != nil {
-		JsonError(&w, err.Error())
-		return
-	}
-
 	db, _ := database.GetDb()
 
 	var game database.Game
 
 	// FIXME: this is not secure
-	result := db.Where("id = ? AND (player1_id = ? OR player2_id = ?)", id, claims.UserID, claims.UserID).First(&game)
-	if result.Error != nil {
+	if result := db.Where(
+		"id = ? AND (player1_id = ? OR player2_id = ?)",
+		id, claims.UserID, claims.UserID,
+	).First(&game); result.Error != nil {
 		JsonError(&w, result.Error.Error())
 		return
 	}
@@ -313,13 +285,9 @@ func EndGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result = db.Where("id = ?", game.ID).
-		Preload("Player1", func(db *gorm.DB) *gorm.DB {
-			return db.Omit("Password")
-		}).
-		Preload("Player2", func(db *gorm.DB) *gorm.DB {
-			return db.Omit("Password")
-		}).
+	result := db.Where("id = ?", game.ID).
+		Preload("Player1", auth.OmitPassword).
+		Preload("Player2", auth.OmitPassword).
 		First(&game)
 
 	if result.Error != nil {

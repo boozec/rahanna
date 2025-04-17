@@ -68,11 +68,9 @@ func (m *PlayModel) handleGameResponse(msg database.Game) (tea.Model, tea.Cmd) {
 		localPort, _ := strconv.ParseInt(ip[1], 10, 32)
 
 		logger, _ := logger.GetLogger()
-		network := multiplayer.NewGameNetwork("peer-2", fmt.Sprintf("%s:%d", localIP, localPort), func() error {
-			return nil
-		}, logger)
+		network := multiplayer.NewGameNetwork("peer-2", fmt.Sprintf("%s:%d", localIP, localPort), network.DefaultHandshake, logger)
 
-		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, "peer-1", m.game.ID, network))
+		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, m.game.ID, network))
 	}
 	return m, nil
 }

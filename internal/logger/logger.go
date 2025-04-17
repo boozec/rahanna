@@ -2,6 +2,7 @@ package logger
 
 import (
 	"errors"
+	"os"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -10,31 +11,44 @@ import (
 
 var logger *zap.Logger = nil
 
-func InitLogger(logFile string) *zap.Logger {
+// Set up a new Zap logger. If `onlyFile` is true, set up the logger to work
+// only on file, else prints on stdout
+func InitLogger(logFile string, onlyFile bool) *zap.Logger {
 	cfg := zap.NewProductionConfig()
-	cfg.OutputPaths = []string{logFile}
-	cfg.ErrorOutputPaths = []string{logFile}
+	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 
-	// Configure lumberjack for log rotation
+	var core zapcore.Core
+
 	lumberjackLogger := &lumberjack.Logger{
 		Filename:   logFile,
-		MaxSize:    100, // megabytes
+		MaxSize:    100,
 		MaxBackups: 5,
-		MaxAge:     30, // days
+		MaxAge:     30,
 		Compress:   true,
 	}
 
-	core := zapcore.NewCore(
+	fileCore := zapcore.NewCore(
 		zapcore.NewJSONEncoder(cfg.EncoderConfig),
-		zapcore.AddSync(lumberjackLogger), // Log only to the file via lumberjack
+		zapcore.AddSync(lumberjackLogger),
 		cfg.Level,
 	)
 
-	logger = zap.New(core)
+	if onlyFile {
+		core = fileCore
+	} else {
+		consoleCore := zapcore.NewCore(
+			zapcore.NewConsoleEncoder(cfg.EncoderConfig),
+			zapcore.Lock(os.Stdout),
+			cfg.Level,
+		)
+		core = zapcore.NewTee(fileCore, consoleCore)
+	}
 
+	logger = zap.New(core)
 	return logger
 }
 
+// Return the global Zap logger after calling `InitLogger` method
 func GetLogger() (*zap.Logger, error) {
 	if logger == nil {
 		return nil, errors.New("You must call `InitLogger()` first.")

@@ -12,11 +12,6 @@ import (
 
 func (m GameModel) handleDatabaseGameMsg(msg database.Game) (GameModel, tea.Cmd) {
 	m.game = &msg
-	if m.peer == "peer-2" {
-		m.network.Peer = msg.IP2
-	} else {
-		m.network.Peer = msg.IP1
-	}
 
 	var cmd tea.Cmd
 
@@ -52,15 +47,15 @@ func (m *GameModel) getGame() tea.Cmd {
 		}
 
 		// Establish peer connection
-		if m.peer == "peer-2" {
+		if m.network.Me() == "peer-1" {
 			if game.IP2 != "" {
 				remote := game.IP2
-				go m.network.Server.AddPeer("peer-2", remote)
+				go m.network.AddPeer("peer-2", remote)
 			}
 		} else {
 			if game.IP1 != "" {
 				remote := game.IP1
-				go m.network.Server.AddPeer("peer-1", remote)
+				go m.network.AddPeer("peer-1", remote)
 			}
 		}
 

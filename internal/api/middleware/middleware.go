@@ -1,12 +1,16 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
 	"github.com/boozec/rahanna/internal/api/auth"
 )
 
+// AuthMiddleware ensures that the requester has passed the Authorization
+// header with a valid JWY token.
+// It passes the claims item via context
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenString := r.Header.Get("Authorization")
@@ -22,7 +26,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		_, err := auth.ValidateJWT(tokenString)
+		claims, err := auth.ValidateJWT(tokenString)
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 
@@ -31,6 +35,9 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			w.Write([]byte(payload))
 			return
 		}
-		next.ServeHTTP(w, r)
+
+		ctx := context.WithValue(r.Context(), "claims", claims)
+
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

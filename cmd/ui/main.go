@@ -10,7 +10,7 @@ import (
 
 func main() {
 	views.ClearScreen()
-	_ = logger.InitLogger("rahanna-ui.log")
+	_ = logger.InitLogger("rahanna-ui.log", true)
 
 	p := tea.NewProgram(views.NewRahannaModel(), tea.WithAltScreen())
 

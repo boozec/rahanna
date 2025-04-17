@@ -38,7 +38,7 @@ func getUserID() (int, error) {
 		return -1, err
 	}
 
-	claims, err := auth.ValidateJWT("Bearer " + token)
+	claims, err := auth.ValidateJWT(token)
 	if err != nil {
 		return -1, err
 	}
@@ -55,7 +55,7 @@ func sendAPIRequest(method, url string, payload []byte, authorization string) (*
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", authorization))
+	req.Header.Add("Authorization", authorization)
 
 	client := &http.Client{}
 	return client.Do(req)

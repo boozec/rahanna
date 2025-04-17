@@ -8,10 +8,12 @@ import (
 )
 
 type GameNetwork struct {
-	Server *network.TCPNetwork
-	Peer   string
+	server *network.TCPNetwork
+	me     network.NetworkID
+	peer   network.NetworkID
 }
 
+// Wrapper to a `TCPNetwork`
 func NewGameNetwork(localID string, address string, onHandshake network.NetworkHandshakeFunc, logger *zap.Logger) *GameNetwork {
 	opts := network.TCPNetworkOpts{
 		ListenAddr:  address,
@@ -20,9 +22,29 @@ func NewGameNetwork(localID string, address string, onHandshake network.NetworkH
 		Logger:      logger,
 	}
 	server := network.NewTCPNetwork(network.NetworkID(localID), opts)
-	peer := ""
 	return &GameNetwork{
-		Server: server,
-		Peer:   peer,
+		server: server,
+		me:     network.NetworkID(localID),
 	}
+}
+
+func (n *GameNetwork) Peer() network.NetworkID {
+	return n.peer
+}
+
+func (n *GameNetwork) Me() network.NetworkID {
+	return n.me
+}
+
+func (n *GameNetwork) Send(payload []byte) error {
+	return n.server.Send(n.peer, payload)
+}
+
+func (n *GameNetwork) AddPeer(remoteID network.NetworkID, addr string) {
+	n.peer = remoteID
+	n.server.AddPeer(remoteID, addr)
+}
+
+func (n *GameNetwork) AddReceiveFunction(f network.NetworkMessageReceiveFunc) {
+	n.server.OnReceiveFn = f
 }

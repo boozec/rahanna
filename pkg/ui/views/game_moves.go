@@ -24,10 +24,10 @@ func (i item) Description() string { return "" }
 func (i item) FilterValue() string { return i.title }
 
 func (m *GameModel) getMoves() tea.Cmd {
-	m.network.Server.OnReceiveFn = func(msg network.Message) {
+	m.network.AddReceiveFunction(func(msg network.Message) {
 		payload := string(msg.Payload)
 		m.incomingMoves <- payload
-	}
+	})
 
 	return func() tea.Msg {
 		move := <-m.incomingMoves

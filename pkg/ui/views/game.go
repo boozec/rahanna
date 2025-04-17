@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/boozec/rahanna/internal/api/database"
-	"github.com/boozec/rahanna/internal/network"
 	"github.com/boozec/rahanna/pkg/ui/multiplayer"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -25,7 +24,6 @@ type GameModel struct {
 	keys gameKeyMap
 
 	// Game state
-	peer               string
 	currentGameID      int
 	game               *database.Game
 	network            *multiplayer.GameNetwork
@@ -36,7 +34,7 @@ type GameModel struct {
 }
 
 // NewGameModel creates a new GameModel.
-func NewGameModel(width, height int, peer string, currentGameID int, network *multiplayer.GameNetwork) GameModel {
+func NewGameModel(width, height int, currentGameID int, network *multiplayer.GameNetwork) GameModel {
 	listDelegate := list.NewDefaultDelegate()
 	listDelegate.ShowDescription = false
 	listDelegate.Styles.SelectedTitle = lipgloss.NewStyle().
@@ -55,7 +53,6 @@ func NewGameModel(width, height int, peer string, currentGameID int, network *mu
 		width:              width,
 		height:             height,
 		keys:               defaultGameKeyMap,
-		peer:               peer,
 		currentGameID:      currentGameID,
 		network:            network,
 		chessGame:          chess.NewGame(chess.UseNotation(chess.UCINotation{})),
@@ -97,10 +94,10 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd, m.updateMovesListCmd())
 	case EndGameMsg:
 		if msg.abandoned {
-			if m.peer == "peer-2" {
-				m.game.Outcome = "1-0"
+			if m.network.Me() == "peer-1" {
+				m.game.Outcome = string(chess.WhiteWon)
 			} else {
-				m.game.Outcome = "0-1"
+				m.game.Outcome = string(chess.BlackWon)
 			}
 			m, cmd = m.handleDatabaseGameMsg(*m.game)
 			cmds = append(cmds, cmd)
@@ -123,7 +120,7 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.err = err
 					} else {
 						m.turn++
-						m.network.Server.Send(network.NetworkID(m.peer), []byte(moveStr))
+						m.network.Send([]byte(moveStr))
 						m.err = nil
 					}
 					cmds = append(cmds, m.getMoves(), m.updateMovesListCmd())
@@ -172,17 +169,17 @@ func (m GameModel) View() string {
 	} else {
 		var outcome string
 		switch m.game.Outcome {
-		case "1-0":
+		case string(chess.WhiteWon):
 			outcome = "White won"
-			if m.peer == "peer-2" {
+			if m.network.Me() == "peer-1" {
 				outcome += " (YOU)"
 			}
-		case "0-1":
+		case string(chess.BlackWon):
 			outcome = "Black won"
-			if m.peer == "peer-1" {
+			if m.network.Me() == "peer-2" {
 				outcome += " (YOU)"
 			}
-		case "1/2-1/2":
+		case string(chess.Draw):
 			outcome = "Draw"
 		default:
 			outcome = "NoOutcome"

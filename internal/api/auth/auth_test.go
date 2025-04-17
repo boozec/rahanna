@@ -19,8 +19,6 @@ func TestGenerateAndValidateJWT(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, tokenString)
 
-	tokenString = "Bearer " + tokenString
-
 	claims, err := ValidateJWT(tokenString)
 	assert.NoError(t, err)
 	assert.NotNil(t, claims)

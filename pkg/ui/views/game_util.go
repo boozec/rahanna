@@ -24,5 +24,5 @@ func (m GameModel) buildWindowContent(content string, formWidth int) string {
 }
 
 func (m GameModel) isMyTurn() bool {
-	return m.turn%2 == 0 && m.peer == "peer-2" || m.turn%2 == 1 && m.peer == "peer-1"
+	return m.turn%2 == 0 && m.network.Me() == "peer-1" || m.turn%2 == 1 && m.network.Me() == "peer-2"
 }

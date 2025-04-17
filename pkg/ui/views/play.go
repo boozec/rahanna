@@ -89,7 +89,7 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.userID, m.err = getUserID()
 		return m.handleGamesResponse(msg)
 	case StartGameMsg:
-		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, "peer-2", m.currentGameId, m.network))
+		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, m.currentGameId, m.network))
 	case error:
 		return m.handleError(msg)
 	}

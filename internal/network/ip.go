@@ -8,6 +8,7 @@ import (
 	"github.com/boozec/rahanna/internal/logger"
 )
 
+// Connect a DNS to get the address
 func GetOutboundIP() net.IP {
 	log, _ := logger.GetLogger()
 	conn, err := net.Dial("udp", "8.8.8.8:80")
@@ -21,6 +22,7 @@ func GetOutboundIP() net.IP {
 	return localAddr.IP
 }
 
+// Returns a random available port on the node
 func GetRandomAvailablePort() (int, error) {
 	for i := 0; i < 100; i += 1 {
 		port := rand.Intn(65535-1024) + 1024
