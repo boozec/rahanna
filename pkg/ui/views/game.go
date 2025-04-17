@@ -157,6 +157,15 @@ func (m GameModel) View() string {
 		}
 	}
 
+	// TODO: a faster solution withoout strings.Split and strings.Join
+	moves := strings.Split(movesListStr, "[")
+	if len(moves) > 10 {
+		start := len(moves) - 10
+		movesListStr = "[" + strings.Join(moves[start:], "[")
+	} else {
+		movesListStr = strings.Join(moves, "[")
+	}
+
 	var errorStr string
 	if m.err != nil {
 		errorStr = m.err.Error()
