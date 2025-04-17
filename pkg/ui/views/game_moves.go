@@ -44,14 +44,17 @@ func (m GameModel) handleUpdateMovesListMsg() GameModel {
 	if m.isMyTurn() && m.game != nil {
 		var items []list.Item
 		for _, move := range m.chessGame.ValidMoves() {
-			items = append(items, item{title: move.String()})
+			items = append(
+				items,
+				item{title: fmt.Sprintf("%s → %s", move.S1().String(), move.S2().String())},
+			)
 		}
-		m.movesList.SetItems(items)
-		m.movesList.Title = "Choose a move"
-		m.movesList.Select(0)
-		m.movesList.SetShowFilter(true)
-		m.movesList.SetFilteringEnabled(true)
-		m.movesList.ResetFilter()
+		m.availableMovesList.SetItems(items)
+		m.availableMovesList.Title = "Choose a move"
+		m.availableMovesList.Select(0)
+		m.availableMovesList.SetShowFilter(true)
+		m.availableMovesList.SetFilteringEnabled(true)
+		m.availableMovesList.ResetFilter()
 	}
 	return m
 }
@@ -60,7 +63,9 @@ func (m GameModel) handleChessMoveMsg(msg ChessMoveMsg) (GameModel, tea.Cmd) {
 	m.turn++
 	err := m.chessGame.MoveStr(string(msg))
 	if err != nil {
-		fmt.Println("Error applying move:", err)
+		m.err = err
+	} else {
+		m.err = nil
 	}
 	return m, tea.Batch(m.getMoves(), m.updateMovesListCmd())
 }

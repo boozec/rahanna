@@ -2,6 +2,7 @@ package views
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/boozec/rahanna/internal/api/database"
 	"github.com/boozec/rahanna/internal/network"
@@ -20,17 +21,18 @@ type GameModel struct {
 	height int
 
 	// UI state
+	err  error
 	keys gameKeyMap
 
 	// Game state
-	peer          string
-	currentGameID int
-	game          *database.Game
-	network       *multiplayer.GameNetwork
-	chessGame     *chess.Game
-	incomingMoves chan string
-	turn          int
-	movesList     list.Model
+	peer               string
+	currentGameID      int
+	game               *database.Game
+	network            *multiplayer.GameNetwork
+	chessGame          *chess.Game
+	incomingMoves      chan string
+	turn               int
+	availableMovesList list.Model
 }
 
 // NewGameModel creates a new GameModel.
@@ -50,16 +52,16 @@ func NewGameModel(width, height int, peer string, currentGameID int, network *mu
 		Padding(0, 1)
 
 	return GameModel{
-		width:         width,
-		height:        height,
-		keys:          defaultGameKeyMap,
-		peer:          peer,
-		currentGameID: currentGameID,
-		network:       network,
-		chessGame:     chess.NewGame(chess.UseNotation(chess.UCINotation{})),
-		incomingMoves: make(chan string),
-		turn:          0,
-		movesList:     moveList,
+		width:              width,
+		height:             height,
+		keys:               defaultGameKeyMap,
+		peer:               peer,
+		currentGameID:      currentGameID,
+		network:            network,
+		chessGame:          chess.NewGame(chess.UseNotation(chess.UCINotation{})),
+		incomingMoves:      make(chan string),
+		turn:               0,
+		availableMovesList: moveList,
 	}
 }
 
@@ -96,13 +98,13 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.isMyTurn() {
-		m.movesList, cmd = m.movesList.Update(msg)
+		m.availableMovesList, cmd = m.availableMovesList.Update(msg)
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
 			if msg.Type == tea.KeyEnter {
-				selectedItem := m.movesList.SelectedItem()
+				selectedItem := m.availableMovesList.SelectedItem()
 				if selectedItem != nil {
-					moveStr := selectedItem.(item).Title()
+					moveStr := strings.Replace(selectedItem.(item).Title(), " → ", "", 1)
 					m.network.Server.Send(network.NetworkID(m.peer), []byte(moveStr))
 					m.chessGame.MoveStr(moveStr)
 					m.turn++
@@ -136,13 +138,28 @@ func (m GameModel) View() string {
 	boardStyle := lipgloss.NewStyle().Width(boardWidth).Height(boardHeight).Align(lipgloss.Center).Padding(0, 1)
 	notationStyle := lipgloss.NewStyle().Width(notationWidth).Height(notationHeight).Padding(0, 1)
 
-	var movesListView string
+	var availableMovesListView string
 
 	if m.isMyTurn() {
-		m.movesList.SetSize(listWidth, listHeight-2)
-		movesListView = listStyle.Render(m.movesList.View())
+		m.availableMovesList.SetSize(listWidth, listHeight-2)
+		availableMovesListView = listStyle.Render(m.availableMovesList.View())
 	} else {
-		movesListView = listStyle.Render(lipgloss.Place(listWidth, listHeight, lipgloss.Center, lipgloss.Center, "Wait your turn"))
+		availableMovesListView = listStyle.Render(lipgloss.Place(listWidth, listHeight, lipgloss.Center, lipgloss.Center, "Wait your turn"))
+	}
+
+	var movesListStr string
+
+	for i, move := range m.chessGame.Moves() {
+		if i%2 == 0 {
+			movesListStr += fmt.Sprintf("[%d] %s → %s", (i/2)+1, move.S1().String(), move.S2().String())
+		} else {
+			movesListStr += fmt.Sprintf(", %s → %s\n", move.S1().String(), move.S2().String())
+		}
+	}
+
+	var errorStr string
+	if m.err != nil {
+		errorStr = m.err.Error()
 	}
 
 	content := lipgloss.JoinVertical(
@@ -150,11 +167,17 @@ func (m GameModel) View() string {
 		lipgloss.NewStyle().Foreground(lipgloss.Color("#f1c40f")).Render(fmt.Sprintf("%s vs %s", m.game.Player1.Username, m.game.Player2.Username)),
 		lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			movesListView,
+			availableMovesListView,
 			boardStyle.Render(
 				m.chessGame.Position().Board().Draw(),
 			),
-			notationStyle.Render(fmt.Sprintf("Moves\n%s", m.chessGame.String())),
+			notationStyle.Render(
+				lipgloss.JoinVertical(
+					lipgloss.Left,
+					lipgloss.NewStyle().Background(highlightColor).Foreground(lipgloss.Color("230")).Padding(0, 1).MarginBottom(1).Render("Moves"),
+					movesListStr,
+				),
+			),
 		),
 	)
 
@@ -165,6 +188,7 @@ func (m GameModel) View() string {
 		lipgloss.Center,
 		getLogo(m.width),
 		windowContent,
+		errorStyle.Width(formWidth/2).Render(errorStr),
 		lipgloss.NewStyle().MarginTop(2).Render(buttons),
 	)
 

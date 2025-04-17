@@ -1,9 +1,6 @@
 package views
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/boozec/rahanna/internal/api/database"
 	"github.com/boozec/rahanna/pkg/ui/multiplayer"
 	"github.com/charmbracelet/bubbles/paginator"

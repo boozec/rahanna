@@ -9,7 +9,7 @@ func (m GameModel) handleWindowSizeMsg(msg tea.WindowSizeMsg) (GameModel, tea.Cm
 	m.width = msg.Width
 	m.height = msg.Height
 	listWidth := m.width / 4
-	m.movesList.SetSize(listWidth, m.height/2)
+	m.availableMovesList.SetSize(listWidth, m.height/2)
 	return m, m.updateMovesListCmd()
 }
 
