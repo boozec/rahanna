@@ -22,7 +22,7 @@ var defaultGameKeyMap = gameKeyMap{
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("Q", "q"),
-		key.WithHelp("   Q", "Quit"),
+		key.WithHelp("    Q", "Quit"),
 	),
 }
 
