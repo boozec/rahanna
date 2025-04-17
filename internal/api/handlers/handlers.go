@@ -130,6 +130,7 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 		Name:      name,
 		IP1:       payload.IP,
 		IP2:       "",
+		Outcome:   "*",
 	}
 
 	result := db.Create(&play)
@@ -251,6 +252,68 @@ func GetGameId(w http.ResponseWriter, r *http.Request) {
 	var game database.Game
 
 	result := db.Where("id = ? AND (player1_id = ? OR player2_id = ?)", id, claims.UserID, claims.UserID).
+		Preload("Player1", func(db *gorm.DB) *gorm.DB {
+			return db.Omit("Password")
+		}).
+		Preload("Player2", func(db *gorm.DB) *gorm.DB {
+			return db.Omit("Password")
+		}).
+		First(&game)
+
+	if result.Error != nil {
+		JsonError(&w, result.Error.Error())
+		return
+	}
+
+	json.NewEncoder(w).Encode(game)
+}
+
+func EndGame(w http.ResponseWriter, r *http.Request) {
+	log, _ := logger.GetLogger()
+	vars := mux.Vars(r)
+	id := vars["id"]
+	log.Info(fmt.Sprintf("POST /play/%s/end", id))
+
+	claims, err := auth.ValidateJWT(r.Header.Get("Authorization"))
+
+	if err != nil {
+		JsonError(&w, err.Error())
+		return
+	}
+
+	var payload struct {
+		Outcome string `json:"outcome"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		JsonError(&w, err.Error())
+		return
+	}
+
+	if err != nil {
+		JsonError(&w, err.Error())
+		return
+	}
+
+	db, _ := database.GetDb()
+
+	var game database.Game
+
+	// FIXME: this is not secure
+	result := db.Where("id = ? AND (player1_id = ? OR player2_id = ?)", id, claims.UserID, claims.UserID).First(&game)
+	if result.Error != nil {
+		JsonError(&w, result.Error.Error())
+		return
+	}
+
+	game.Outcome = payload.Outcome
+
+	if err := db.Save(&game).Error; err != nil {
+		JsonError(&w, err.Error())
+		return
+	}
+
+	result = db.Where("id = ?", game.ID).
 		Preload("Player1", func(db *gorm.DB) *gorm.DB {
 			return db.Omit("Password")
 		}).

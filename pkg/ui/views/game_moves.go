@@ -6,6 +6,7 @@ import (
 	"github.com/boozec/rahanna/internal/network"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/notnil/chess"
 )
 
 // UpdateMovesListMsg is a message to update the moves list
@@ -44,9 +45,13 @@ func (m GameModel) handleUpdateMovesListMsg() GameModel {
 	if m.isMyTurn() && m.game != nil {
 		var items []list.Item
 		for _, move := range m.chessGame.ValidMoves() {
+			var promo string
+			if move.Promo().String() != "" {
+				promo = " " + move.Promo().String()
+			}
 			items = append(
 				items,
-				item{title: fmt.Sprintf("%s → %s", move.S1().String(), move.S2().String())},
+				item{title: fmt.Sprintf("%s → %s%s", move.S1().String(), move.S2().String(), promo)},
 			)
 		}
 		m.availableMovesList.SetItems(items)
@@ -60,12 +65,18 @@ func (m GameModel) handleUpdateMovesListMsg() GameModel {
 }
 
 func (m GameModel) handleChessMoveMsg(msg ChessMoveMsg) (GameModel, tea.Cmd) {
-	m.turn++
 	err := m.chessGame.MoveStr(string(msg))
+	cmds := []tea.Cmd{m.getMoves(), m.updateMovesListCmd()}
 	if err != nil {
 		m.err = err
 	} else {
+		m.turn++
 		m.err = nil
 	}
-	return m, tea.Batch(m.getMoves(), m.updateMovesListCmd())
+
+	if m.chessGame.Outcome() != chess.NoOutcome {
+		cmds = append(cmds, m.endGame())
+	}
+
+	return m, tea.Batch(cmds...)
 }

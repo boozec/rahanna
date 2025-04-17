@@ -19,6 +19,7 @@ type Game struct {
 	Name      string    `json:"name"`
 	IP1       string    `json:"ip1"`
 	IP2       string    `json:"ip2"`
+	Outcome   string    `json:"outcome"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

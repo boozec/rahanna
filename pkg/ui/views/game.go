@@ -93,8 +93,12 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m, cmd = m.handleChessMoveMsg(msg)
 		cmds = append(cmds, cmd)
 	case database.Game:
-		m = m.handleDatabaseGameMsg(msg)
-		cmds = append(cmds, m.updateMovesListCmd())
+		m, cmd = m.handleDatabaseGameMsg(msg)
+		cmds = append(cmds, cmd, m.updateMovesListCmd())
+	case EndGameMsg:
+		return m, nil
+	case error:
+		m.err = msg
 	}
 
 	if m.isMyTurn() {
@@ -105,10 +109,20 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				selectedItem := m.availableMovesList.SelectedItem()
 				if selectedItem != nil {
 					moveStr := strings.Replace(selectedItem.(item).Title(), " → ", "", 1)
-					m.network.Server.Send(network.NetworkID(m.peer), []byte(moveStr))
-					m.chessGame.MoveStr(moveStr)
-					m.turn++
+					moveStr = strings.Replace(moveStr, " ", "", 1)
+					err := m.chessGame.MoveStr(moveStr)
+					if err != nil {
+						m.err = err
+					} else {
+						m.turn++
+						m.network.Server.Send(network.NetworkID(m.peer), []byte(moveStr))
+						m.err = nil
+					}
 					cmds = append(cmds, m.getMoves(), m.updateMovesListCmd())
+
+					if m.chessGame.Outcome() != chess.NoOutcome {
+						cmds = append(cmds, m.endGame())
+					}
 				}
 			}
 		}
@@ -140,20 +154,57 @@ func (m GameModel) View() string {
 
 	var availableMovesListView string
 
-	if m.isMyTurn() {
-		m.availableMovesList.SetSize(listWidth, listHeight-2)
-		availableMovesListView = listStyle.Render(m.availableMovesList.View())
+	if m.game.Outcome == chess.NoOutcome.String() {
+		if m.isMyTurn() {
+			m.availableMovesList.SetSize(listWidth, listHeight-2)
+			availableMovesListView = listStyle.Render(m.availableMovesList.View())
+		} else {
+			availableMovesListView = listStyle.Render(lipgloss.Place(listWidth, listHeight, lipgloss.Center, lipgloss.Center, "Wait your turn"))
+		}
 	} else {
-		availableMovesListView = listStyle.Render(lipgloss.Place(listWidth, listHeight, lipgloss.Center, lipgloss.Center, "Wait your turn"))
+		var outcome string
+		switch m.game.Outcome {
+		case "1-0":
+			outcome = "White won"
+			if m.peer == "peer-2" {
+				outcome += " (YOU)"
+			}
+		case "0-1":
+			outcome = "Black won"
+			if m.peer == "peer-1" {
+				outcome += " (YOU)"
+			}
+		case "1/2-1/2":
+			outcome = "Draw"
+		default:
+			outcome = "NoOutcome"
+		}
+
+		availableMovesListView = listStyle.Render(
+			lipgloss.JoinVertical(
+				lipgloss.Left,
+				lipgloss.NewStyle().Background(highlightColor).Foreground(lipgloss.Color("230")).Padding(0, 1).MarginBottom(1).Render("Result"),
+				outcome,
+				m.game.Outcome,
+			),
+		)
 	}
 
 	var movesListStr string
 
 	for i, move := range m.chessGame.Moves() {
+		s1 := move.S1().String()
+		s2 := move.S2().String()
+		var promo string
+
+		if move.Promo().String() != "" {
+			promo = " " + move.Promo().String()
+		}
+
 		if i%2 == 0 {
-			movesListStr += altCodeStyle.Render(fmt.Sprintf("[%d]", i/2)) + fmt.Sprintf(" %s → %s", move.S1().String(), move.S2().String())
+			movesListStr += altCodeStyle.Render(fmt.Sprintf("[%d]", i/2)) + fmt.Sprintf(" %s → %s%s", s1, s2, promo)
 		} else {
-			movesListStr += fmt.Sprintf(", %s → %s\n", move.S1().String(), move.S2().String())
+			movesListStr += fmt.Sprintf(", %s → %s%s\n", s1, s2, promo)
 		}
 	}
 
@@ -173,7 +224,7 @@ func (m GameModel) View() string {
 
 	content := lipgloss.JoinVertical(
 		lipgloss.Center,
-		lipgloss.NewStyle().Foreground(lipgloss.Color("#f1c40f")).Render(fmt.Sprintf("%s vs %s", m.game.Player1.Username, m.game.Player2.Username)),
+		lipgloss.NewStyle().Foreground(lipgloss.Color("#f1c40f")).Render(fmt.Sprintf("♔ %s vs ♚ %s", m.game.Player1.Username, m.game.Player2.Username)),
 		lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			availableMovesListView,

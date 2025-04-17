@@ -7,16 +7,26 @@ import (
 
 	"github.com/boozec/rahanna/internal/api/database"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/notnil/chess"
 )
 
-func (m GameModel) handleDatabaseGameMsg(msg database.Game) GameModel {
+func (m GameModel) handleDatabaseGameMsg(msg database.Game) (GameModel, tea.Cmd) {
 	m.game = &msg
 	if m.peer == "peer-2" {
 		m.network.Peer = msg.IP2
 	} else {
 		m.network.Peer = msg.IP1
 	}
-	return m
+
+	var cmd tea.Cmd
+
+	if m.game.Outcome != chess.NoOutcome.String() {
+		cmd = func() tea.Msg {
+			return EndGameMsg{}
+		}
+	}
+
+	return m, cmd
 }
 
 func (m *GameModel) getGame() tea.Cmd {
@@ -52,6 +62,39 @@ func (m *GameModel) getGame() tea.Cmd {
 				remote := game.IP1
 				go m.network.Server.AddPeer("peer-1", remote)
 			}
+		}
+
+		return game
+	}
+}
+
+type EndGameMsg struct{}
+
+func (m *GameModel) endGame() tea.Cmd {
+	return func() tea.Msg {
+		var game database.Game
+
+		// Get authorization token
+		authorization, err := getAuthorizationToken()
+		if err != nil {
+			return err
+		}
+
+		// Prepare request payload
+		payload, err := json.Marshal(map[string]string{
+			"outcome": m.chessGame.Outcome().String(),
+		})
+
+		// Send API request
+		url := fmt.Sprintf("%s/play/%d/end", os.Getenv("API_BASE"), m.currentGameID)
+		resp, err := sendAPIRequest("POST", url, payload, authorization)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
+			return err
 		}
 
 		return game
