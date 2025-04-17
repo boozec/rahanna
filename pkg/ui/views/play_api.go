@@ -216,6 +216,7 @@ func (m *PlayModel) fetchGames() tea.Cmd {
 		if err := json.NewDecoder(resp.Body).Decode(&games); err != nil {
 			return []database.Game{}
 		}
+
 		return games
 	}
 }

@@ -40,6 +40,7 @@ type PlayModel struct {
 	paginator  paginator.Model
 
 	// Game state
+	userID        int
 	playName      string
 	currentGameId int
 	game          *database.Game
@@ -85,6 +86,7 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case database.Game:
 		return m.handleGameResponse(msg)
 	case []database.Game:
+		m.userID, m.err = getUserID()
 		return m.handleGamesResponse(msg)
 	case StartGameMsg:
 		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, "peer-2", m.currentGameId, m.network))

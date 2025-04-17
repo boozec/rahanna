@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+
+	"github.com/boozec/rahanna/internal/api/auth"
 )
 
 // getAuthorizationToken reads the authentication token from the .rahannarc file
@@ -27,6 +29,22 @@ func getAuthorizationToken() (string, error) {
 	}
 
 	return authorization, nil
+}
+
+// From a JWT token it returns the associated user ID
+func getUserID() (int, error) {
+	token, err := getAuthorizationToken()
+	if err != nil {
+		return -1, err
+	}
+
+	claims, err := auth.ValidateJWT("Bearer " + token)
+	if err != nil {
+		return -1, err
+	}
+
+	return claims.UserID, nil
+
 }
 
 // sendAPIRequest sends an HTTP request to the API with the given parameters

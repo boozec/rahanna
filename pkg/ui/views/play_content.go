@@ -29,7 +29,7 @@ func (m PlayModel) renderPageContent(base lipgloss.Style) string {
 			return base.Render(chessBoard)
 		} else {
 			start, end := m.paginator.GetSliceBounds(len(m.games))
-			gamesStrings := formatGamesForPage(m.games[start:end], altCodeStyle)
+			gamesStrings := formatGamesForPage(m.userID, m.games[start:end], altCodeStyle)
 			pageInfo := m.paginator.View()
 			return base.Render(lipgloss.JoinVertical(lipgloss.Center, strings.Join(gamesStrings, "\n"), pageInfo))
 		}
