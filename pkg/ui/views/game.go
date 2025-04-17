@@ -151,7 +151,7 @@ func (m GameModel) View() string {
 
 	for i, move := range m.chessGame.Moves() {
 		if i%2 == 0 {
-			movesListStr += fmt.Sprintf("[%d] %s → %s", (i/2)+1, move.S1().String(), move.S2().String())
+			movesListStr += altCodeStyle.Render(fmt.Sprintf("[%d]", i/2)) + fmt.Sprintf(" %s → %s", move.S1().String(), move.S2().String())
 		} else {
 			movesListStr += fmt.Sprintf(", %s → %s\n", move.S1().String(), move.S2().String())
 		}
