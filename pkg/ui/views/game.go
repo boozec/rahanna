@@ -1,52 +1,17 @@
 package views
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/boozec/rahanna/internal/api/database"
 	"github.com/boozec/rahanna/internal/network"
 	"github.com/boozec/rahanna/pkg/ui/multiplayer"
-	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/notnil/chess"
 )
-
-// gameKeyMap defines the key bindings for the game view.
-type gameKeyMap struct {
-	GoLogout key.Binding
-	Quit     key.Binding
-}
-
-// defaultGameKeyMap provides the default key bindings for the game view.
-var defaultGameKeyMap = gameKeyMap{
-	GoLogout: key.NewBinding(
-		key.WithKeys("alt+Q", "alt+q"),
-		key.WithHelp("Alt+Q", "Logout"),
-	),
-	Quit: key.NewBinding(
-		key.WithKeys("Q", "q"),
-		key.WithHelp("   Q", "Quit"),
-	),
-}
-
-// ChessMoveMsg is a message containing a received chess move.
-type ChessMoveMsg string
-
-// UpdateMovesListMsg is a message to update the moves list
-type UpdateMovesListMsg struct{}
-
-type item struct {
-	title string
-}
-
-func (i item) Title() string       { return i.title }
-func (i item) Description() string { return "" }
-func (i item) FilterValue() string { return i.title }
 
 // GameModel represents the state of the game view.
 type GameModel struct {
@@ -104,12 +69,6 @@ func (m GameModel) Init() tea.Cmd {
 	return tea.Batch(textinput.Blink, m.getGame(), m.getMoves(), m.updateMovesListCmd())
 }
 
-func (m *GameModel) updateMovesListCmd() tea.Cmd {
-	return func() tea.Msg {
-		return UpdateMovesListMsg{}
-	}
-}
-
 // Update handles incoming messages and updates the GameModel.
 func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if exit := handleExit(msg); exit != nil {
@@ -155,60 +114,6 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, tea.Batch(cmds...)
-}
-
-func (m GameModel) handleWindowSizeMsg(msg tea.WindowSizeMsg) (GameModel, tea.Cmd) {
-	m.width = msg.Width
-	m.height = msg.Height
-	listWidth := m.width / 4
-	m.movesList.SetSize(listWidth, m.height/2)
-	return m, m.updateMovesListCmd()
-}
-
-func (m GameModel) handleUpdateMovesListMsg() GameModel {
-	if m.isMyTurn() && m.game != nil {
-		var items []list.Item
-		for _, move := range m.chessGame.ValidMoves() {
-			items = append(items, item{title: move.String()})
-		}
-		m.movesList.SetItems(items)
-		m.movesList.Title = "Choose a move"
-		m.movesList.Select(0)
-		m.movesList.SetShowFilter(true)
-		m.movesList.SetFilteringEnabled(true)
-		m.movesList.ResetFilter()
-	}
-	return m
-}
-
-func (m GameModel) handleKeyMsg(msg tea.KeyMsg) (GameModel, tea.Cmd) {
-	switch {
-	case key.Matches(msg, m.keys.GoLogout):
-		return m, logout(m.width, m.height+1)
-	case key.Matches(msg, m.keys.Quit):
-		return m, tea.Quit
-	}
-
-	return m, nil
-}
-
-func (m GameModel) handleChessMoveMsg(msg ChessMoveMsg) (GameModel, tea.Cmd) {
-	m.turn++
-	err := m.chessGame.MoveStr(string(msg))
-	if err != nil {
-		fmt.Println("Error applying move:", err)
-	}
-	return m, tea.Batch(m.getMoves(), m.updateMovesListCmd())
-}
-
-func (m GameModel) handleDatabaseGameMsg(msg database.Game) GameModel {
-	m.game = &msg
-	if m.peer == "peer-2" {
-		m.network.Peer = msg.IP2
-	} else {
-		m.network.Peer = msg.IP1
-	}
-	return m
 }
 
 // View renders the GameModel.
@@ -270,85 +175,4 @@ func (m GameModel) View() string {
 		lipgloss.Center,
 		centeredContent,
 	)
-}
-
-func (m GameModel) buildWindowContent(content string, formWidth int) string {
-	return lipgloss.JoinVertical(
-		lipgloss.Center,
-		windowStyle.Width(formWidth).Render(lipgloss.JoinVertical(
-			lipgloss.Center,
-			content,
-		)),
-	)
-}
-
-func (m GameModel) renderNavigationButtons() string {
-	logoutKey := fmt.Sprintf("%s %s",
-		altCodeStyle.Render(m.keys.GoLogout.Help().Key),
-		m.keys.GoLogout.Help().Desc)
-
-	quitKey := fmt.Sprintf("%s %s",
-		altCodeStyle.Render(m.keys.Quit.Help().Key),
-		m.keys.Quit.Help().Desc)
-
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		logoutKey,
-		quitKey,
-	)
-}
-
-func (m *GameModel) getGame() tea.Cmd {
-	return func() tea.Msg {
-		var game database.Game
-
-		// Get authorization token
-		authorization, err := getAuthorizationToken()
-		if err != nil {
-			return nil
-		}
-
-		// Send API request
-		url := fmt.Sprintf("%s/play/%d", os.Getenv("API_BASE"), m.currentGameID)
-		resp, err := sendAPIRequest("GET", url, nil, authorization)
-		if err != nil {
-			return nil
-		}
-		defer resp.Body.Close()
-
-		if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
-			return nil
-		}
-
-		// Establish peer connection
-		if m.peer == "peer-2" {
-			if game.IP2 != "" {
-				remote := game.IP2
-				go m.network.Server.AddPeer("peer-2", remote)
-			}
-		} else {
-			if game.IP1 != "" {
-				remote := game.IP1
-				go m.network.Server.AddPeer("peer-1", remote)
-			}
-		}
-
-		return game
-	}
-}
-
-func (m *GameModel) getMoves() tea.Cmd {
-	m.network.Server.OnReceiveFn = func(msg network.Message) {
-		moveStr := string(msg.Payload)
-		m.incomingMoves <- moveStr
-	}
-
-	return func() tea.Msg {
-		move := <-m.incomingMoves
-		return ChessMoveMsg(move)
-	}
-}
-
-func (m GameModel) isMyTurn() bool {
-	return m.turn%2 == 0 && m.peer == "peer-2" || m.turn%2 == 1 && m.peer == "peer-1"
 }
