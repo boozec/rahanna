@@ -13,7 +13,7 @@ func TestPeerToPeerCommunication(t *testing.T) {
 	// Create a mock of the first peer (peer-1)
 	peer1Opts := TCPNetworkOpts{
 		ListenAddr:  ":9001",
-		HandshakeFn: func() error { return nil },
+		HandshakeFn: DefaultHandshake,
 		RetryDelay:  time.Second * 2,
 		Logger:      zap.L(),
 	}
@@ -26,7 +26,7 @@ func TestPeerToPeerCommunication(t *testing.T) {
 	// Create a mock of the second peer (peer-2)
 	peer2Opts := TCPNetworkOpts{
 		ListenAddr:  ":9002",
-		HandshakeFn: func() error { return nil },
+		HandshakeFn: DefaultHandshake,
 		RetryDelay:  time.Second * 2,
 		Logger:      zap.L(),
 		OnReceiveFn: func(msg Message) {
