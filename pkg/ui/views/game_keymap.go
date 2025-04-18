@@ -35,15 +35,18 @@ var defaultGameKeyMap = gameKeyMap{
 func (m GameModel) handleKeyMsg(msg tea.KeyMsg) (GameModel, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.Abandon):
-		var outcome string
-		if m.network.Me() == "peer-1" {
-			outcome = string(chess.BlackWon)
-		} else {
-			outcome = string(chess.WhiteWon)
-		}
+		// Abandon game only if it is not finished
+		if m.game.Outcome == "*" {
+			var outcome string
+			if m.network.Me() == "peer-1" {
+				outcome = string(chess.BlackWon)
+			} else {
+				outcome = string(chess.WhiteWon)
+			}
 
-		m.network.Send([]byte("🏳️"))
-		return m, m.endGame(outcome)
+			m.network.Send([]byte("🏳️"))
+			return m, m.endGame(outcome)
+		}
 	case key.Matches(msg, m.keys.Quit):
 		return m, SwitchModelCmd(NewPlayModel(m.width, m.height))
 	}
@@ -52,9 +55,12 @@ func (m GameModel) handleKeyMsg(msg tea.KeyMsg) (GameModel, tea.Cmd) {
 }
 
 func (m GameModel) renderNavigationButtons() string {
-	abandonKey := fmt.Sprintf("%s %s",
-		altCodeStyle.Render(m.keys.Abandon.Help().Key),
-		m.keys.Abandon.Help().Desc)
+	var abandonKey string
+	if m.game.Outcome == "*" {
+		abandonKey = fmt.Sprintf("%s %s",
+			altCodeStyle.Render(m.keys.Abandon.Help().Key),
+			m.keys.Abandon.Help().Desc)
+	}
 
 	quitKey := fmt.Sprintf("%s %s",
 		altCodeStyle.Render(m.keys.Quit.Help().Key),

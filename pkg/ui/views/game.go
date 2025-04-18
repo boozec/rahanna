@@ -102,6 +102,8 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m, cmd = m.handleDatabaseGameMsg(*m.game)
 			cmds = append(cmds, cmd)
 		}
+
+		m.err = m.network.Close()
 	case error:
 		m.err = msg
 	}

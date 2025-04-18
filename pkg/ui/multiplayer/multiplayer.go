@@ -3,6 +3,7 @@ package multiplayer
 import (
 	"time"
 
+	"github.com/boozec/rahanna/internal/logger"
 	"github.com/boozec/rahanna/pkg/p2p"
 	"go.uber.org/zap"
 )
@@ -47,4 +48,17 @@ func (n *GameNetwork) AddPeer(remoteID p2p.NetworkID, addr string) {
 
 func (n *GameNetwork) AddReceiveFunction(f p2p.NetworkMessageReceiveFunc) {
 	n.server.OnReceiveFn = f
+}
+
+func (n *GameNetwork) Close() error {
+	err := n.server.Close()
+	logger, _ := logger.GetLogger()
+
+	if err != nil {
+		logger.Sugar().Errorf("Can't close connection for network '%+v': %s", n, err.Error())
+	} else {
+		logger.Sugar().Infof("Connection closed for network '%+v'", n)
+	}
+
+	return err
 }

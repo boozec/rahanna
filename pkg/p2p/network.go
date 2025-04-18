@@ -51,6 +51,7 @@ type TCPNetwork struct {
 	id          NetworkID
 	listener    net.Listener
 	connections map[NetworkID]net.Conn
+	isClosed    bool
 }
 
 // Initiliaze a new TCP network
@@ -129,6 +130,8 @@ func (n *TCPNetwork) startServer() error {
 		return err
 	}
 
+	n.isClosed = false
+
 	go n.listenLoop()
 
 	n.Logger.Sugar().Infof("server started on %s\n", n.ListenAddr)
@@ -141,6 +144,7 @@ func (n *TCPNetwork) listenLoop() error {
 	for {
 		conn, err := n.listener.Accept()
 		if errors.Is(err, net.ErrClosed) {
+			n.isClosed = true
 			n.Logger.Sugar().Errorf("connection is closed in such a way: %v\n", err)
 			return err
 		}
@@ -218,7 +222,7 @@ func (n *TCPNetwork) retryConnect(remoteID NetworkID, addr string) {
 		if err != nil {
 			n.Logger.Sugar().Errorf("failed to connect to %s: %v. Retrying in %v...", remoteID, err, n.RetryDelay)
 			time.Sleep(n.RetryDelay)
-			if n.RetryDelay < 30*time.Second {
+			if !n.isClosed && n.RetryDelay < 30*time.Second {
 				n.RetryDelay *= 2
 			} else {
 				n.Lock()
