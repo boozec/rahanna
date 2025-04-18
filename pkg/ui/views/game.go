@@ -49,6 +49,7 @@ func NewGameModel(width, height int, currentGameID int, network *multiplayer.Gam
 		Background(highlightColor).
 		Foreground(lipgloss.Color("230")).
 		Padding(0, 1)
+	moveList.DisableQuitKeybindings()
 
 	return GameModel{
 		width:              width,
