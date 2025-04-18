@@ -25,9 +25,9 @@ type playKeyMap struct {
 	StartNewGame key.Binding
 	RestoreGame  key.Binding
 	GoLogout     key.Binding
-	Quit         key.Binding
 	NextPage     key.Binding
 	PrevPage     key.Binding
+	Exit         key.Binding
 }
 
 // Default key bindings for the play model
@@ -48,10 +48,6 @@ var defaultPlayKeyMap = playKeyMap{
 		key.WithKeys("alt+Q", "alt+q"),
 		key.WithHelp("Alt+Q", "Logout"),
 	),
-	Quit: key.NewBinding(
-		key.WithKeys("Q", "q"),
-		key.WithHelp("    Q", "Quit"),
-	),
 	NextPage: key.NewBinding(
 		key.WithKeys("right"),
 		key.WithHelp("→/h", "Next Page"),
@@ -59,6 +55,10 @@ var defaultPlayKeyMap = playKeyMap{
 	PrevPage: key.NewBinding(
 		key.WithKeys("left"),
 		key.WithHelp("←/l", "Prev Page"),
+	),
+	Exit: key.NewBinding(
+		key.WithKeys("ctrl+c", "ctrl+C"),
+		key.WithHelp("Ctrl+C", "Exit"),
 	),
 }
 
@@ -103,9 +103,6 @@ func (m PlayModel) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.GoLogout):
 		return m, logout(m.width, m.height+1)
 
-	case key.Matches(msg, m.keys.Quit):
-		return m, tea.Quit
-
 	case msg.Type == tea.KeyEnter:
 		if m.page == InsertCodePage && !m.isLoading {
 			m.isLoading = true
@@ -128,9 +125,9 @@ func (m PlayModel) renderNavigationButtons() string {
 		altCodeStyle.Render(m.keys.GoLogout.Help().Key),
 		m.keys.GoLogout.Help().Desc)
 
-	quitKey := fmt.Sprintf("%s %s",
-		altCodeStyle.Render(m.keys.Quit.Help().Key),
-		m.keys.Quit.Help().Desc)
+	exitKey := fmt.Sprintf("%s %s",
+		altCodeStyle.Render(m.keys.Exit.Help().Key),
+		m.keys.Exit.Help().Desc)
 
 	if m.page == LandingPage {
 		enterKey := fmt.Sprintf("%s %s",
@@ -160,13 +157,13 @@ func (m PlayModel) renderNavigationButtons() string {
 			restoreKey,
 			lipgloss.JoinHorizontal(lipgloss.Left, prevPageKey, " | ", nextPageKey),
 			logoutKey,
-			quitKey,
+			exitKey,
 		)
 	}
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		logoutKey,
-		quitKey,
+		exitKey,
 	)
 }

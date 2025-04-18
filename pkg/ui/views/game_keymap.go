@@ -28,7 +28,7 @@ var defaultGameKeyMap = gameKeyMap{
 	),
 	Exit: key.NewBinding(
 		key.WithKeys("ctrl+c", "ctrl+C"),
-		key.WithHelp("CTRL+C", "Exit"),
+		key.WithHelp("Ctrl+C", "Exit"),
 	),
 }
 
