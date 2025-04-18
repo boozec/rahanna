@@ -118,12 +118,13 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 
 	name := p2p.NewSession()
 	play := database.Game{
-		Player1ID: claims.UserID,
-		Player2ID: nil,
-		Name:      name,
-		IP1:       payload.IP,
-		IP2:       "",
-		Outcome:   "*",
+		Player1ID:  claims.UserID,
+		Player2ID:  nil,
+		Name:       name,
+		IP1:        payload.IP,
+		IP2:        "",
+		Outcome:    "*",
+		LastPlayer: 1,
 	}
 
 	if result := db.Create(&play); result.Error != nil {
@@ -158,13 +159,25 @@ func EnterGame(w http.ResponseWriter, r *http.Request) {
 
 	var game database.Game
 
-	if result := db.Where("name = ? AND player2_id IS NULL", payload.Name).First(&game); result.Error != nil {
+	if result := db.Where("name = ?", payload.Name).First(&game); result.Error != nil {
 		JsonError(&w, result.Error.Error())
 		return
 	}
 
-	game.Player2ID = &claims.UserID
-	game.IP2 = payload.IP
+	if game.Player2ID == nil {
+		game.Player2ID = &claims.UserID
+		game.IP2 = payload.IP
+		game.LastPlayer = 2
+	} else {
+		if game.Player1ID == claims.UserID {
+			game.IP1 = payload.IP
+			game.LastPlayer = 1
+		} else {
+			game.IP2 = payload.IP
+			game.LastPlayer = 2
+		}
+	}
+
 	game.UpdatedAt = time.Now()
 
 	if err := db.Save(&game).Error; err != nil {

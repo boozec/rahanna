@@ -46,6 +46,7 @@ type PlayModel struct {
 	game          *database.Game
 	network       *multiplayer.GameNetwork
 	games         []database.Game
+	gameToRestore *database.Game
 }
 
 // NewPlayModel creates a new play model instance
@@ -89,7 +90,7 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.userID, m.err = getUserID()
 		return m.handleGamesResponse(msg)
 	case StartGameMsg:
-		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, m.currentGameId, m.network))
+		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, m.currentGameId, m.network, m.gameToRestore != nil))
 	case error:
 		return m.handleError(msg)
 	}

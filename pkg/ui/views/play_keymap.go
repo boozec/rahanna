@@ -1,11 +1,14 @@
 package views
 
 import (
+	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/notnil/chess"
 )
 
 type PlayModelPage int
@@ -20,6 +23,7 @@ const (
 type playKeyMap struct {
 	EnterNewGame key.Binding
 	StartNewGame key.Binding
+	RestoreGame  key.Binding
 	GoLogout     key.Binding
 	Quit         key.Binding
 	NextPage     key.Binding
@@ -35,6 +39,10 @@ var defaultPlayKeyMap = playKeyMap{
 	StartNewGame: key.NewBinding(
 		key.WithKeys("alt+s", "alt+S"),
 		key.WithHelp("Alt+S", "Start a new play"),
+	),
+	RestoreGame: key.NewBinding(
+		key.WithKeys("0", "1", "2", "3", "4", "5", "6", "7", "8", "9"),
+		key.WithHelp("[0-9]", "Restore a game"),
 	),
 	GoLogout: key.NewBinding(
 		key.WithKeys("alt+Q", "alt+q"),
@@ -60,7 +68,6 @@ func (m PlayModel) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.EnterNewGame):
 		m.page = InsertCodePage
-		m.namePrompt, cmd = m.namePrompt.Update("suca")
 		return m, cmd
 
 	case key.Matches(msg, m.keys.StartNewGame):
@@ -68,6 +75,23 @@ func (m PlayModel) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if !m.isLoading {
 			m.isLoading = true
 			return m, m.newGameCallback()
+		}
+
+	case key.Matches(msg, m.keys.RestoreGame):
+		idx, err := strconv.Atoi(msg.String())
+		m.err = err
+		if err == nil {
+			gameIndex := m.paginator.Page*m.paginator.PerPage + idx
+			if gameIndex < len(m.games) {
+				m.gameToRestore = &m.games[gameIndex]
+				if m.gameToRestore.Outcome != chess.NoOutcome.String() {
+					m.err = errors.New("this game is closed")
+				} else {
+					m.err = nil
+					m.namePrompt.SetValue(m.gameToRestore.Name)
+					return m, m.enterGame()
+				}
+			}
 		}
 
 	case key.Matches(msg, m.keys.GoLogout):
@@ -107,6 +131,10 @@ func (m PlayModel) renderNavigationButtons() string {
 			altCodeStyle.Render(m.keys.EnterNewGame.Help().Key),
 			m.keys.EnterNewGame.Help().Desc)
 
+		restoreKey := fmt.Sprintf("%s %s",
+			altCodeStyle.Render(m.keys.RestoreGame.Help().Key),
+			m.keys.RestoreGame.Help().Desc)
+
 		startKey := fmt.Sprintf("%s %s",
 			altCodeStyle.Render(m.keys.StartNewGame.Help().Key),
 			m.keys.StartNewGame.Help().Desc)
@@ -123,6 +151,7 @@ func (m PlayModel) renderNavigationButtons() string {
 			lipgloss.Left,
 			enterKey,
 			startKey,
+			restoreKey,
 			lipgloss.JoinHorizontal(lipgloss.Left, prevPageKey, " | ", nextPageKey),
 			logoutKey,
 			quitKey,

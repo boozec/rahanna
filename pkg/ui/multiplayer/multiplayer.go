@@ -11,8 +11,10 @@ import (
 type MoveType string
 
 const (
-	AbandonGameMessage MoveType = "abandon"
-	MoveGameMessage    MoveType = "new-move"
+	AbandonGameMessage    MoveType = "abandon"
+	RestoreGameMessage    MoveType = "restore"
+	RestoreAckGameMessage MoveType = "restore-ack"
+	MoveGameMessage       MoveType = "new-move"
 )
 
 type GameMove struct {
@@ -26,13 +28,14 @@ type GameNetwork struct {
 	peer   p2p.NetworkID
 }
 
-// Wrapper to a `TCPNetwork`
-func NewGameNetwork(localID string, address string, onHandshake p2p.NetworkHandshakeFunc, logger *zap.Logger) *GameNetwork {
+// Wrapper to a `TCPNetwork`RestoreAck
+func NewGameNetwork(localID string, address string, onHandshake p2p.NetworkHandshakeFunc, onFirstHandshake p2p.NetworkHandshakeFunc, logger *zap.Logger) *GameNetwork {
 	opts := p2p.TCPNetworkOpts{
-		ListenAddr:  address,
-		HandshakeFn: onHandshake,
-		RetryDelay:  time.Second * 2,
-		Logger:      logger,
+		ListenAddr:       address,
+		HandshakeFn:      onHandshake,
+		FirstHandshakeFn: onFirstHandshake,
+		RetryDelay:       time.Second * 2,
+		Logger:           logger,
 	}
 	server := p2p.NewTCPNetwork(p2p.NetworkID(localID), opts)
 	return &GameNetwork{

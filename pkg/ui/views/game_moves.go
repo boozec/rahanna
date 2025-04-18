@@ -35,10 +35,17 @@ func (m *GameModel) getMoves() tea.Cmd {
 
 	return func() tea.Msg {
 		move := <-m.incomingMoves
-		if multiplayer.MoveType(string(move.Type)) == multiplayer.AbandonGameMessage {
+
+		switch multiplayer.MoveType(string(move.Type)) {
+		case multiplayer.AbandonGameMessage:
 			return EndGameMsg{abandoned: true}
+		case multiplayer.RestoreGameMessage:
+			return SendRestoreMsg{}
+		case multiplayer.RestoreAckGameMessage:
+			return RestoreMoves(string(move.Payload))
+		default:
+			return ChessMoveMsg(string(move.Payload))
 		}
-		return ChessMoveMsg(string(move.Payload))
 	}
 }
 

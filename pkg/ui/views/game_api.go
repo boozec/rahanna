@@ -21,17 +21,21 @@ func (m GameModel) handleDatabaseGameMsg(msg database.Game) (GameModel, tea.Cmd)
 		if m.network.Me() == m.playerPeer(1) {
 			if m.game.IP2 != "" {
 				remote := m.game.IP2
-				go m.network.AddPeer(m.playerPeer(2), remote)
+				m.network.AddPeer(m.playerPeer(2), remote)
 			}
 		} else {
 			if m.game.IP1 != "" {
 				remote := m.game.IP1
-				go m.network.AddPeer(m.playerPeer(1), remote)
+				m.network.AddPeer(m.playerPeer(1), remote)
 			}
 		}
 	}
 
-	if m.game.Outcome != chess.NoOutcome.String() {
+	if m.restore {
+		cmd = func() tea.Msg {
+			return RestoreGameMsg{}
+		}
+	} else if m.game.Outcome != chess.NoOutcome.String() {
 		cmd = func() tea.Msg {
 			return EndGameMsg{}
 		}
@@ -62,6 +66,8 @@ func (m *GameModel) getGame() tea.Cmd {
 			return nil
 		}
 
+		m.game = &game
+
 		return game
 	}
 }
@@ -69,6 +75,8 @@ func (m *GameModel) getGame() tea.Cmd {
 type EndGameMsg struct {
 	abandoned bool
 }
+
+type RestoreGameMsg struct{}
 
 func (m *GameModel) endGame(outcome string) tea.Cmd {
 	return func() tea.Msg {

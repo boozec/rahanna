@@ -46,8 +46,8 @@ func (m *PlayModel) handlePlayResponse(msg playResponse) (tea.Model, tea.Cmd) {
 		logger, _ := logger.GetLogger()
 
 		callbackCompleted := make(chan bool)
-		m.network = multiplayer.NewGameNetwork(fmt.Sprintf("%s-1", m.playName), fmt.Sprintf("%s:%d", msg.Ok.IP, msg.Ok.Port), func(net.Conn) error {
-			callbackCompleted <- true
+		m.network = multiplayer.NewGameNetwork(fmt.Sprintf("%s-1", m.playName), fmt.Sprintf("%s:%d", msg.Ok.IP, msg.Ok.Port), p2p.DefaultHandshake, func(net.Conn) error {
+			close(callbackCompleted)
 			return nil
 		}, logger)
 
@@ -59,19 +59,31 @@ func (m *PlayModel) handlePlayResponse(msg playResponse) (tea.Model, tea.Cmd) {
 
 	return m, nil
 }
+
 func (m *PlayModel) handleGameResponse(msg database.Game) (tea.Model, tea.Cmd) {
 	m.isLoading = false
 	m.game = &msg
 	m.err = nil
-	ip := strings.Split(m.game.IP2, ":")
+
+	var ip []string
+	var localID string
+
+	if m.game.LastPlayer == 2 {
+		ip = strings.Split(m.game.IP2, ":")
+		localID = fmt.Sprintf("%s-2", m.game.Name)
+	} else {
+		ip = strings.Split(m.game.IP1, ":")
+		localID = fmt.Sprintf("%s-1", m.game.Name)
+	}
+
 	if len(ip) == 2 {
 		localIP := ip[0]
 		localPort, _ := strconv.ParseInt(ip[1], 10, 32)
 
 		logger, _ := logger.GetLogger()
-		network := multiplayer.NewGameNetwork(fmt.Sprintf("%s-2", m.game.Name), fmt.Sprintf("%s:%d", localIP, localPort), p2p.DefaultHandshake, logger)
+		network := multiplayer.NewGameNetwork(localID, fmt.Sprintf("%s:%d", localIP, localPort), p2p.DefaultHandshake, p2p.DefaultHandshake, logger)
 
-		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, m.game.ID, network))
+		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, m.game.ID, network, m.gameToRestore != nil))
 	}
 	return m, nil
 }

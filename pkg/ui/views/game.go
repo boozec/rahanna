@@ -24,6 +24,7 @@ type GameModel struct {
 	keys gameKeyMap
 
 	// Game state
+	restore            bool
 	currentGameID      int
 	game               *database.Game
 	network            *multiplayer.GameNetwork
@@ -34,7 +35,7 @@ type GameModel struct {
 }
 
 // NewGameModel creates a new GameModel.
-func NewGameModel(width, height int, currentGameID int, network *multiplayer.GameNetwork) GameModel {
+func NewGameModel(width, height int, currentGameID int, network *multiplayer.GameNetwork, restore bool) GameModel {
 	listDelegate := list.NewDefaultDelegate()
 	listDelegate.ShowDescription = false
 	listDelegate.Styles.SelectedTitle = lipgloss.NewStyle().
@@ -59,6 +60,7 @@ func NewGameModel(width, height int, currentGameID int, network *multiplayer.Gam
 		incomingMoves:      make(chan multiplayer.GameMove),
 		turn:               0,
 		availableMovesList: moveList,
+		restore:            restore,
 	}
 }
 
@@ -89,6 +91,13 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ChessMoveMsg:
 		m, cmd = m.handleChessMoveMsg(msg)
 		cmds = append(cmds, cmd)
+	case SendRestoreMsg:
+		cmd = m.handleSendRestoreMsg()
+		cmds = append(cmds, cmd)
+	case RestoreMoves:
+		cmd = m.handleRestoreMoves(msg)
+		cmds = append(cmds, cmd)
+
 	case database.Game:
 		m, cmd = m.handleDatabaseGameMsg(msg)
 		cmds = append(cmds, cmd, m.updateMovesListCmd())
@@ -104,6 +113,10 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.err = m.network.Close()
+	case RestoreGameMsg:
+		m.network.Send([]byte("restore"), []byte(m.network.Me()))
+		m.restore = false
+
 	case error:
 		m.err = msg
 	}
