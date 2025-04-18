@@ -14,6 +14,7 @@ import (
 
 // `Message` represents a structured message on this network.
 type Message struct {
+	Type      []byte    `json:"type"`
 	Timestamp int64     `json:"timestamp"`
 	Source    NetworkID `json:"source"`
 	Payload   []byte    `json:"payload"`
@@ -107,7 +108,7 @@ func (n *TCPNetwork) AddPeer(remoteID NetworkID, addr string) {
 }
 
 // Send methods is used to send a message to a specified remote peer
-func (n *TCPNetwork) Send(remoteID NetworkID, payload []byte) error {
+func (n *TCPNetwork) Send(remoteID NetworkID, messageType []byte, payload []byte) error {
 	n.Lock()
 	peerConn, exists := n.connections[remoteID]
 	n.Unlock()
@@ -123,6 +124,7 @@ func (n *TCPNetwork) Send(remoteID NetworkID, payload []byte) error {
 	}
 
 	message := Message{
+		Type:      messageType,
 		Payload:   payload,
 		Source:    n.id,
 		Timestamp: time.Now().Unix(),

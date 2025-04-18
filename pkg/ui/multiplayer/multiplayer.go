@@ -8,6 +8,18 @@ import (
 	"go.uber.org/zap"
 )
 
+type MoveType string
+
+const (
+	AbandonGameMessage MoveType = "abandon"
+	MoveGameMessage    MoveType = "new-move"
+)
+
+type GameMove struct {
+	Type    []byte `json:"type"`
+	Payload []byte `json:"payload"`
+}
+
 type GameNetwork struct {
 	server *p2p.TCPNetwork
 	me     p2p.NetworkID
@@ -37,8 +49,8 @@ func (n *GameNetwork) Me() p2p.NetworkID {
 	return n.me
 }
 
-func (n *GameNetwork) Send(payload []byte) error {
-	return n.server.Send(n.peer, payload)
+func (n *GameNetwork) Send(messageType []byte, payload []byte) error {
+	return n.server.Send(n.peer, messageType, payload)
 }
 
 func (n *GameNetwork) AddPeer(remoteID p2p.NetworkID, addr string) {
@@ -55,9 +67,9 @@ func (n *GameNetwork) Close() error {
 	logger, _ := logger.GetLogger()
 
 	if err != nil {
-		logger.Sugar().Errorf("Can't close connection for network '%+v': %s", n, err.Error())
+		logger.Sugar().Errorf("can't close connection for network '%+v': %s", n, err.Error())
 	} else {
-		logger.Sugar().Infof("Connection closed for network '%+v'", n)
+		logger.Sugar().Infof("connection closed for network '%+v'", n)
 	}
 
 	return err

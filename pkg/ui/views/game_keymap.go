@@ -44,7 +44,7 @@ func (m GameModel) handleKeyMsg(msg tea.KeyMsg) (GameModel, tea.Cmd) {
 				outcome = string(chess.WhiteWon)
 			}
 
-			m.network.Send([]byte("🏳️"))
+			m.network.Send([]byte("abandon"), []byte("🏳️"))
 			return m, m.endGame(outcome)
 		}
 	case key.Matches(msg, m.keys.Quit):

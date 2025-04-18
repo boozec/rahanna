@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/boozec/rahanna/pkg/p2p"
+	"github.com/boozec/rahanna/pkg/ui/multiplayer"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/notnil/chess"
@@ -25,16 +26,19 @@ func (i item) FilterValue() string { return i.title }
 
 func (m *GameModel) getMoves() tea.Cmd {
 	m.network.AddReceiveFunction(func(msg p2p.Message) {
-		payload := string(msg.Payload)
-		m.incomingMoves <- payload
+		gm := multiplayer.GameMove{
+			Type:    msg.Type,
+			Payload: msg.Payload,
+		}
+		m.incomingMoves <- gm
 	})
 
 	return func() tea.Msg {
 		move := <-m.incomingMoves
-		if move == "🏳️" {
+		if multiplayer.MoveType(string(move.Type)) == multiplayer.AbandonGameMessage {
 			return EndGameMsg{abandoned: true}
 		}
-		return ChessMoveMsg(move)
+		return ChessMoveMsg(string(move.Payload))
 	}
 }
 

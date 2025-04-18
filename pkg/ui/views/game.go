@@ -28,7 +28,7 @@ type GameModel struct {
 	game               *database.Game
 	network            *multiplayer.GameNetwork
 	chessGame          *chess.Game
-	incomingMoves      chan string
+	incomingMoves      chan multiplayer.GameMove
 	turn               int
 	availableMovesList list.Model
 }
@@ -56,7 +56,7 @@ func NewGameModel(width, height int, currentGameID int, network *multiplayer.Gam
 		currentGameID:      currentGameID,
 		network:            network,
 		chessGame:          chess.NewGame(chess.UseNotation(chess.UCINotation{})),
-		incomingMoves:      make(chan string),
+		incomingMoves:      make(chan multiplayer.GameMove),
 		turn:               0,
 		availableMovesList: moveList,
 	}
@@ -122,7 +122,7 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.err = err
 					} else {
 						m.turn++
-						m.network.Send([]byte(moveStr))
+						m.network.Send([]byte("new-move"), []byte(moveStr))
 						m.err = nil
 					}
 					cmds = append(cmds, m.getMoves(), m.updateMovesListCmd())

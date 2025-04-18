@@ -44,10 +44,10 @@ func TestPeerToPeerCommunication(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	// Send a message from peer-1 to peer-2
-	err := peer1.Send("peer-2", []byte("Hey from peer-1!"))
+	err := peer1.Send("peer-2", []byte("simple-msg"), []byte("Hey from peer-1!"))
 	assert.NoError(t, err)
 
-	err = peer2.Send("peer-1", []byte("Hey from peer-2!"))
+	err = peer2.Send("peer-1", []byte("simple-msg"), []byte("Hey from peer-2!"))
 	assert.NoError(t, err)
 
 	// Allow some time for the message to be received and handled
@@ -74,6 +74,6 @@ func TestSendFailure(t *testing.T) {
 	_ = NewTCPNetwork("peer-2", peer2Opts)
 
 	// Attempt to send a message without establishing a connection first
-	err := peer1.Send("peer-2", []byte("Message without connection"))
+	err := peer1.Send("peer-2", []byte("msg"), []byte("Message without connection"))
 	assert.Error(t, err, "Expected error when sending to a non-connected peer")
 }
