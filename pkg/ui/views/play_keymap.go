@@ -67,14 +67,20 @@ func (m PlayModel) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch {
 	case key.Matches(msg, m.keys.EnterNewGame):
-		m.page = InsertCodePage
-		return m, cmd
+		if m.page == LandingPage {
+			m.page = InsertCodePage
+			return m, cmd
+		}
 
 	case key.Matches(msg, m.keys.StartNewGame):
-		m.page = StartGamePage
-		if !m.isLoading {
-			m.isLoading = true
-			return m, m.newGameCallback()
+		if m.page == LandingPage {
+			m.page = StartGamePage
+			if !m.isLoading {
+				m.isLoading = true
+				return m, m.newGameCallback()
+			}
+
+			return m, cmd
 		}
 
 	case key.Matches(msg, m.keys.RestoreGame):
