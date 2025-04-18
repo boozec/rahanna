@@ -86,13 +86,13 @@ func (n *TCPNetwork) Send(remoteID NetworkID, payload []byte) error {
 		return fmt.Errorf("not connected to peer %s", remoteID)
 	}
 
-	msg := Message{
+	message := Message{
 		Payload:   payload,
 		Source:    n.listener.Addr().String(),
 		Timestamp: time.Now().Unix(),
 	}
 
-	data, err := json.Marshal(msg)
+	data, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %v", err)
 	}
@@ -107,6 +107,8 @@ func (n *TCPNetwork) Send(remoteID NetworkID, payload []byte) error {
 		go n.retryConnect(remoteID, "")
 
 		return fmt.Errorf("failed to send message: %v", err)
+	} else {
+		n.Logger.Sugar().Infof("Sent message to '%s': %s", conn.LocalAddr(), message.Payload)
 	}
 
 	return nil
