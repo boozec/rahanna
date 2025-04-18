@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/boozec/rahanna/internal/api/database"
+	"github.com/boozec/rahanna/pkg/p2p"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/notnil/chess"
 )
@@ -14,6 +15,21 @@ func (m GameModel) handleDatabaseGameMsg(msg database.Game) (GameModel, tea.Cmd)
 	m.game = &msg
 
 	var cmd tea.Cmd
+
+	// Establish peer connection
+	if m.network.Peer() == p2p.EmptyNetworkID {
+		if m.network.Me() == m.playerPeer(1) {
+			if m.game.IP2 != "" {
+				remote := m.game.IP2
+				go m.network.AddPeer(m.playerPeer(2), remote)
+			}
+		} else {
+			if m.game.IP1 != "" {
+				remote := m.game.IP1
+				go m.network.AddPeer(m.playerPeer(1), remote)
+			}
+		}
+	}
 
 	if m.game.Outcome != chess.NoOutcome.String() {
 		cmd = func() tea.Msg {
@@ -44,19 +60,6 @@ func (m *GameModel) getGame() tea.Cmd {
 
 		if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
 			return nil
-		}
-
-		// Establish peer connection
-		if m.network.Me() == "peer-1" {
-			if game.IP2 != "" {
-				remote := game.IP2
-				go m.network.AddPeer("peer-2", remote)
-			}
-		} else {
-			if game.IP1 != "" {
-				remote := game.IP1
-				go m.network.AddPeer("peer-1", remote)
-			}
 		}
 
 		return game

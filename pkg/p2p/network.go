@@ -22,6 +22,9 @@ type Message struct {
 // A network ID is represented by a string
 type NetworkID string
 
+// Default empty network' ID
+const EmptyNetworkID NetworkID = NetworkID("")
+
 // This type represents the function that is called every time a new message
 // arrives to the server.
 type NetworkMessageReceiveFunc func(msg Message)

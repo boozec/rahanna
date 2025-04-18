@@ -38,7 +38,7 @@ func (m GameModel) handleKeyMsg(msg tea.KeyMsg) (GameModel, tea.Cmd) {
 		// Abandon game only if it is not finished
 		if m.game.Outcome == "*" {
 			var outcome string
-			if m.network.Me() == "peer-1" {
+			if m.network.Me() == m.playerPeer(1) {
 				outcome = string(chess.BlackWon)
 			} else {
 				outcome = string(chess.WhiteWon)

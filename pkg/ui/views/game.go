@@ -94,7 +94,7 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd, m.updateMovesListCmd())
 	case EndGameMsg:
 		if msg.abandoned {
-			if m.network.Me() == "peer-1" {
+			if m.network.Me() == m.playerPeer(1) {
 				m.game.Outcome = string(chess.WhiteWon)
 			} else {
 				m.game.Outcome = string(chess.BlackWon)
@@ -173,12 +173,12 @@ func (m GameModel) View() string {
 		switch m.game.Outcome {
 		case string(chess.WhiteWon):
 			outcome = "White won"
-			if m.network.Me() == "peer-1" {
+			if m.network.Me() == m.playerPeer(1) {
 				outcome += " (YOU)"
 			}
 		case string(chess.BlackWon):
 			outcome = "Black won"
-			if m.network.Me() == "peer-2" {
+			if m.network.Me() == m.playerPeer(2) {
 				outcome += " (YOU)"
 			}
 		case string(chess.Draw):

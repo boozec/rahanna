@@ -45,7 +45,7 @@ func (m *PlayModel) handlePlayResponse(msg playResponse) (tea.Model, tea.Cmd) {
 		logger, _ := logger.GetLogger()
 
 		callbackCompleted := make(chan bool)
-		m.network = multiplayer.NewGameNetwork("peer-1", fmt.Sprintf("%s:%d", msg.Ok.IP, msg.Ok.Port), func() error {
+		m.network = multiplayer.NewGameNetwork(fmt.Sprintf("%s-1", m.playName), fmt.Sprintf("%s:%d", msg.Ok.IP, msg.Ok.Port), func() error {
 			close(callbackCompleted)
 			return nil
 		}, logger)
@@ -68,7 +68,7 @@ func (m *PlayModel) handleGameResponse(msg database.Game) (tea.Model, tea.Cmd) {
 		localPort, _ := strconv.ParseInt(ip[1], 10, 32)
 
 		logger, _ := logger.GetLogger()
-		network := multiplayer.NewGameNetwork("peer-2", fmt.Sprintf("%s:%d", localIP, localPort), p2p.DefaultHandshake, logger)
+		network := multiplayer.NewGameNetwork(fmt.Sprintf("%s-2", m.game.Name), fmt.Sprintf("%s:%d", localIP, localPort), p2p.DefaultHandshake, logger)
 
 		return m, SwitchModelCmd(NewGameModel(m.width, m.height+1, m.game.ID, network))
 	}
