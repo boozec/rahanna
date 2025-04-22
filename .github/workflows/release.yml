@@ -24,6 +24,7 @@ jobs:
         run: make build-api build-ui
 
       - name: Create GitHub Release
+        id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -32,6 +33,23 @@ jobs:
           release_name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
-          files: |
-            rahanna-api
-            rahanna-ui
+
+      - name: Upload API Executable
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: rahanna-api
+          asset_name: rahanna-api
+          asset_content_type: application/octet-stream
+
+      - name: Upload UI Executable
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: rahanna-ui
+          asset_name: rahanna-ui
+          asset_content_type: application/octet-stream
