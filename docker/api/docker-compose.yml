@@ -13,7 +13,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   rahanna:
-    image: rahanna-api
+    image: ghcr.io/boozec/rahanna-api:latest
     container_name: rahanna-api
     networks:
       - default
