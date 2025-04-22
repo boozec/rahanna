@@ -2,7 +2,8 @@
 
 A peer-to-peer (P2P) chess game with a Terminal User Interface (TUI).
 
-[video.mp4](https://raw.githubusercontent.com/boozec/rahanna/main/assets/demo.mp4)
+https://github.com/user-attachments/assets/fdbffd28-290c-4f4e-8336-fc0c8aaf729c
+
 
 > _Disclaimer:_
 > This project is a university exercise for a Distributed Systems class. While it seems to function correctly, Rahanna is not intended for production use. The UI opens network ports that should not be exposed in secure environments.
