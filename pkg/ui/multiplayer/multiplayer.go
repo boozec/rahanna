@@ -28,7 +28,7 @@ type GameNetwork struct {
 	peer   p2p.NetworkID
 }
 
-// Wrapper to a `TCPNetwork`RestoreAck
+// Wrapper to a `TCPNetwork`
 func NewGameNetwork(localID string, address string, onHandshake p2p.NetworkHandshakeFunc, onFirstHandshake p2p.NetworkHandshakeFunc, logger *zap.Logger) *GameNetwork {
 	opts := p2p.TCPNetworkOpts{
 		ListenAddr:       address,
