@@ -116,7 +116,14 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 
 	db, _ := database.GetDb()
 
-	name := p2p.NewSession()
+	var name string
+	for {
+		name = p2p.NewSession()
+		if err := db.Where("name = ? AND outcome = '*'", name).First(nil).Error; err != nil {
+			break
+		}
+	}
+
 	play := database.Game{
 		Player1ID:  claims.UserID,
 		Player2ID:  nil,
