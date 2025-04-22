@@ -22,10 +22,10 @@ func GetOutboundIP() net.IP {
 	return localAddr.IP
 }
 
-// Returns a random available port on the node
+// Returns a random available port on the node in the range of ephemeral ports
 func GetRandomAvailablePort() (int, error) {
 	for i := 0; i < 100; i += 1 {
-		port := rand.Intn(65535-1024) + 1024
+		port := rand.Intn(65535-49152) + 1024
 		addr := fmt.Sprintf(":%d", port)
 		ln, err := net.Listen("tcp", addr)
 		if err == nil {
