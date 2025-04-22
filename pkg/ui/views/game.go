@@ -157,7 +157,7 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m GameModel) View() string {
 	formWidth := getFormWidth(m.width)
 
-	if m.game == nil {
+	if m.game == nil || m.game.Player2 == nil {
 		return "Loading game..."
 	}
 
