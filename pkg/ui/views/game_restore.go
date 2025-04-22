@@ -17,12 +17,11 @@ type RestoreMoves string
 // For `RestoreGameMessage` from multiplayer it fixes the peer with the new
 // address and sends back an ACK to the peer' sender
 func (m GameModel) handleSendRestoreMsg() tea.Cmd {
+	_ = m.getGame()()
 	if m.network.Me() == m.playerPeer(1) {
-		_ = m.getGame()()
 		remote := m.game.IP2
 		m.network.AddPeer(m.playerPeer(2), remote)
 	} else {
-		_ = m.getGame()()
 		remote := m.game.IP1
 		m.network.AddPeer(m.playerPeer(1), remote)
 	}
