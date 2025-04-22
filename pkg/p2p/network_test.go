@@ -14,10 +14,12 @@ func TestPeerToPeerCommunication(t *testing.T) {
 	peer1Opts := TCPNetworkOpts{
 		ListenAddr:  ":9001",
 		HandshakeFn: DefaultHandshake,
-		RetryDelay:  time.Second * 2,
+		RetryDelay:  2 * time.Second,
 		Logger:      zap.L(),
 	}
 	peer1 := NewTCPNetwork("peer-1", peer1Opts)
+	defer peer1.Close()
+	time.Sleep(3 * time.Second)
 
 	peer1.RegisterHandler(func(msg Message) {
 		assert.Equal(t, "Hey from peer-2!", string(msg.Payload))
@@ -27,20 +29,21 @@ func TestPeerToPeerCommunication(t *testing.T) {
 	peer2Opts := TCPNetworkOpts{
 		ListenAddr:  ":9002",
 		HandshakeFn: DefaultHandshake,
-		RetryDelay:  time.Second * 2,
+		RetryDelay:  2 * time.Second,
 		Logger:      zap.L(),
 		OnReceiveFn: func(msg Message) {
 			assert.Equal(t, "Hey from peer-1!", string(msg.Payload))
 		},
 	}
 	peer2 := NewTCPNetwork("peer-2", peer2Opts)
+	defer peer2.Close()
+	time.Sleep(3 * time.Second)
 
 	// Start the first peer and add the second peer
-	go peer1.AddPeer("peer-2", peer2.ListenAddr)
-	go peer2.AddPeer("peer-1", peer1.ListenAddr)
+	peer1.AddPeer("peer-2", peer2.ListenAddr)
+	peer2.AddPeer("peer-1", peer1.ListenAddr)
 
-	// Wait for the connections to be established
-	// You might need a little more time based on network delay and retry logic
+	// Wait for connections to be established with a timeout
 	time.Sleep(5 * time.Second)
 
 	// Send a message from peer-1 to peer-2
@@ -57,21 +60,23 @@ func TestPeerToPeerCommunication(t *testing.T) {
 // TestSendFailure tests if sending a message fails when no connection exists.
 func TestSendFailure(t *testing.T) {
 	peer1Opts := TCPNetworkOpts{
-		ListenAddr:  ":9001",
+		ListenAddr:  ":9003",
 		HandshakeFn: DefaultHandshake,
 		RetryDelay:  time.Second * 2,
 		Logger:      zap.L(),
 	}
 	peer1 := NewTCPNetwork("peer-1", peer1Opts)
+	defer peer1.Close()
 
-	// Create a mock of the second peer (peer-2)
+	// Create a mock of the second peer (peer-2) - but don't add it to peer1
 	peer2Opts := TCPNetworkOpts{
-		ListenAddr:  ":9002",
+		ListenAddr:  ":9004",
 		HandshakeFn: DefaultHandshake,
 		RetryDelay:  time.Second * 2,
 		Logger:      zap.L(),
 	}
-	_ = NewTCPNetwork("peer-2", peer2Opts)
+	peer2 := NewTCPNetwork("peer-2", peer2Opts)
+	defer peer2.Close()
 
 	// Attempt to send a message without establishing a connection first
 	err := peer1.Send("peer-2", []byte("msg"), []byte("Message without connection"))
