@@ -14,7 +14,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o rahanna-ui cmd/ui/main.go
 # Run stage
 FROM alpine:latest
 
-LABEL version="0.0.9-2"
+LABEL version="0.1.0"
 WORKDIR /app
 
 COPY --from=builder /app/rahanna-ui .
