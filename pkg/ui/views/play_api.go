@@ -111,8 +111,6 @@ func (m *PlayModel) newGameCallback() tea.Cmd {
 		}
 
 		ip := p2p.GetOutboundIP().String()
-		// FIXME: ip
-		ip = "0.0.0.0"
 
 		// Prepare request payload
 		payload, err := json.Marshal(map[string]string{
@@ -168,8 +166,6 @@ func (m PlayModel) enterGame() tea.Cmd {
 		}
 
 		ip := p2p.GetOutboundIP().String()
-		// FIXME: ip
-		ip = "0.0.0.0"
 
 		// Prepare request payload
 		payload, err := json.Marshal(map[string]string{
