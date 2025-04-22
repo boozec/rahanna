@@ -15,7 +15,7 @@ import (
 func main() {
 	database.InitDb(os.Getenv("DATABASE_URL"))
 	log := logger.InitLogger("rahanna.log", false)
-	
+	addr := os.Getenv("API_ADDRESS")
 
 	r := mux.NewRouter()
 	r.HandleFunc("/auth/register", handlers.RegisterUser).Methods(http.MethodPost)
@@ -26,9 +26,9 @@ func main() {
 	r.Handle("/play/{id}/end", middleware.AuthMiddleware(http.HandlerFunc(handlers.EndGame))).Methods(http.MethodPost)
 	r.Handle("/enter-game", middleware.AuthMiddleware(http.HandlerFunc(handlers.EnterGame))).Methods(http.MethodPost)
 
-	log.Info("Serving on :8080")
+	log.Sugar().Infof("Serving on %s", addr)
 	handler := cors.AllowAll().Handler(r)
-	if err := http.ListenAndServe(":8080", handler); err != nil {
+	if err := http.ListenAndServe(addr, handler); err != nil {
 		panic(err)
 	}
 }
