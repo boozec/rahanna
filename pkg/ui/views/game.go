@@ -271,7 +271,7 @@ func (m GameModel) View() string {
 
 		playersHeader = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#f1c40f")).
-			Render(fmt.Sprintf("♔ %s - %s vs ♚ %s - %s", players[0], players[1], players[2], players[3]))
+			Render(fmt.Sprintf("♔ %s - %s vs ♚ %s - %s", players[0], players[2], players[1], players[3]))
 	}
 
 	content := lipgloss.JoinVertical(
