@@ -94,7 +94,6 @@ func (n *TCPNetwork) Close() error {
 			pc.Conn.Close()
 		}
 	}
-	n.connections = nil
 	n.Unlock()
 	return nil
 }
