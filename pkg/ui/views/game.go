@@ -25,6 +25,7 @@ type GameModel struct {
 	keys gameKeyMap
 
 	// Game state
+	userID             int
 	restore            bool
 	currentGameID      int
 	game               *database.Game
@@ -100,6 +101,7 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = m.handleRestoreMoves(msg)
 		cmds = append(cmds, cmd)
 	case database.Game:
+		m.userID, m.err = getUserID()
 		m, cmd = m.handleDatabaseGameMsg(msg)
 		cmds = append(cmds, cmd, m.updateMovesListCmd())
 	case EndGameMsg:
@@ -243,16 +245,33 @@ func (m GameModel) View() string {
 	}
 
 	var playersHeader string
+	players := []string{m.game.Player1.Username, m.game.Player2.Username}
+
+	switch m.userID {
+	case m.game.Player1.ID:
+		players[0] += " (YOU)"
+	case m.game.Player2.ID:
+		players[1] += " (YOU)"
+	}
+
 	switch m.game.Type {
 	case database.SingleGameType:
 		playersHeader = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#f1c40f")).
-			Render(fmt.Sprintf("♔ %s vs ♚ %s", m.game.Player1.Username, m.game.Player2.Username))
+			Render(fmt.Sprintf("♔ %s vs ♚ %s", players[0], players[1]))
 	case database.PairGameType:
+		players = append(players, m.game.Player3.Username, m.game.Player4.Username)
+
+		switch m.userID {
+		case m.game.Player3.ID:
+			players[2] += " (YOU)"
+		case m.game.Player4.ID:
+			players[3] += " (YOU)"
+		}
+
 		playersHeader = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#f1c40f")).
-			Render(fmt.Sprintf("♔ %s - %s vs ♚ %s - %s",
-				m.game.Player1.Username, m.game.Player3.Username, m.game.Player2.Username, m.game.Player4.Username))
+			Render(fmt.Sprintf("♔ %s - %s vs ♚ %s - %s", players[0], players[1], players[2], players[3]))
 	}
 
 	content := lipgloss.JoinVertical(
