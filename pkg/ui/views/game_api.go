@@ -88,7 +88,7 @@ type EndGameMsg struct {
 
 type RestoreGameMsg struct{}
 
-func (m *GameModel) endGame(outcome string) tea.Cmd {
+func (m *GameModel) endGame(outcome string, abandon bool) tea.Cmd {
 	return func() tea.Msg {
 		var game database.Game
 
@@ -113,6 +113,10 @@ func (m *GameModel) endGame(outcome string) tea.Cmd {
 
 		if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
 			return err
+		}
+
+		if abandon {
+			m.network.SendAll([]byte("abandon"), []byte("🏳️"))
 		}
 
 		return game

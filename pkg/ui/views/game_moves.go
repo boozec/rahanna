@@ -84,7 +84,7 @@ func (m GameModel) handleChessMoveMsg(msg ChessMoveMsg) (GameModel, tea.Cmd) {
 	cmds := []tea.Cmd{m.getMoves(), m.updateMovesListCmd()}
 
 	if m.chessGame.Outcome() != chess.NoOutcome {
-		cmds = append(cmds, m.endGame(m.chessGame.Outcome().String()))
+		cmds = append(cmds, m.endGame(m.chessGame.Outcome().String(), false))
 	}
 
 	return m, tea.Batch(cmds...)
