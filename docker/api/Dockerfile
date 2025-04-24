@@ -12,7 +12,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build cmd/api/main.go
 # Run the exe file
 FROM scratch
 
-LABEL version="0.2.3"
+LABEL version="0.2.4"
 WORKDIR /app
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
