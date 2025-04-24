@@ -2,7 +2,8 @@
 
 A peer-to-peer (P2P) chess game with a Terminal User Interface (TUI).
 
-https://github.com/user-attachments/assets/fdbffd28-290c-4f4e-8336-fc0c8aaf729c
+
+https://github.com/user-attachments/assets/cf3409b2-bdfa-49f8-997a-252c584dee1a
 
 
 > _Disclaimer:_
