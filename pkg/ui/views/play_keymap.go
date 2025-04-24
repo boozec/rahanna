@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/boozec/rahanna/internal/api/database"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -21,13 +22,14 @@ const (
 
 // Keyboard controls
 type playKeyMap struct {
-	EnterNewGame key.Binding
-	StartNewGame key.Binding
-	RestoreGame  key.Binding
-	GoLogout     key.Binding
-	NextPage     key.Binding
-	PrevPage     key.Binding
-	Exit         key.Binding
+	EnterNewGame       key.Binding
+	StartNewSingleGame key.Binding
+	StartNewPairGame   key.Binding
+	RestoreGame        key.Binding
+	GoLogout           key.Binding
+	NextPage           key.Binding
+	PrevPage           key.Binding
+	Exit               key.Binding
 }
 
 // Default key bindings for the play model
@@ -36,9 +38,13 @@ var defaultPlayKeyMap = playKeyMap{
 		key.WithKeys("alt+E", "alt+e"),
 		key.WithHelp("Alt+E", "Enter a play using code"),
 	),
-	StartNewGame: key.NewBinding(
+	StartNewSingleGame: key.NewBinding(
 		key.WithKeys("alt+s", "alt+S"),
-		key.WithHelp("Alt+S", "Start a new play"),
+		key.WithHelp("Alt+S", "Start a new single play"),
+	),
+	StartNewPairGame: key.NewBinding(
+		key.WithKeys("alt+p", "alt+P"),
+		key.WithHelp("Alt+P", "Start a new pair play"),
 	),
 	RestoreGame: key.NewBinding(
 		key.WithKeys("0", "1", "2", "3", "4", "5", "6", "7", "8", "9"),
@@ -72,12 +78,22 @@ func (m PlayModel) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
-	case key.Matches(msg, m.keys.StartNewGame):
+	case key.Matches(msg, m.keys.StartNewSingleGame):
 		if m.page == LandingPage {
 			m.page = StartGamePage
 			if !m.isLoading {
 				m.isLoading = true
-				return m, m.newGameCallback()
+				return m, m.newGameCallback(database.SingleGameType)
+			}
+
+			return m, cmd
+		}
+	case key.Matches(msg, m.keys.StartNewPairGame):
+		if m.page == LandingPage {
+			m.page = StartGamePage
+			if !m.isLoading {
+				m.isLoading = true
+				return m, m.newGameCallback(database.PairGameType)
 			}
 
 			return m, cmd
@@ -138,9 +154,13 @@ func (m PlayModel) renderNavigationButtons() string {
 			altCodeStyle.Render(m.keys.RestoreGame.Help().Key),
 			m.keys.RestoreGame.Help().Desc)
 
-		startKey := fmt.Sprintf("%s %s",
-			altCodeStyle.Render(m.keys.StartNewGame.Help().Key),
-			m.keys.StartNewGame.Help().Desc)
+		startSingleKey := fmt.Sprintf("%s %s",
+			altCodeStyle.Render(m.keys.StartNewSingleGame.Help().Key),
+			m.keys.StartNewSingleGame.Help().Desc)
+
+		startPairKey := fmt.Sprintf("%s %s",
+			altCodeStyle.Render(m.keys.StartNewPairGame.Help().Key),
+			m.keys.StartNewPairGame.Help().Desc)
 
 		nextPageKey := fmt.Sprintf("%s %s",
 			altCodeStyle.Render(m.keys.NextPage.Help().Key),
@@ -153,7 +173,8 @@ func (m PlayModel) renderNavigationButtons() string {
 		return lipgloss.JoinVertical(
 			lipgloss.Left,
 			enterKey,
-			startKey,
+			startSingleKey,
+			startPairKey,
 			restoreKey,
 			lipgloss.JoinHorizontal(lipgloss.Left, prevPageKey, " | ", nextPageKey),
 			logoutKey,

@@ -27,6 +27,7 @@ func (i item) FilterValue() string { return i.title }
 func (m *GameModel) getMoves() tea.Cmd {
 	m.network.AddReceiveFunction(func(msg p2p.Message) {
 		gm := multiplayer.GameMove{
+			Source:  msg.Source,
 			Type:    msg.Type,
 			Payload: msg.Payload,
 		}
@@ -40,7 +41,7 @@ func (m *GameModel) getMoves() tea.Cmd {
 		case multiplayer.AbandonGameMessage:
 			return EndGameMsg{abandoned: true}
 		case multiplayer.RestoreGameMessage:
-			return SendRestoreMsg{}
+			return SendRestoreMsg(move.Source)
 		case multiplayer.RestoreAckGameMessage:
 			return RestoreMoves(string(move.Payload))
 		default:
@@ -79,14 +80,8 @@ func (m GameModel) handleUpdateMovesListMsg() GameModel {
 }
 
 func (m GameModel) handleChessMoveMsg(msg ChessMoveMsg) (GameModel, tea.Cmd) {
-	err := m.chessGame.MoveStr(string(msg))
+	m.err = m.chessGame.MoveStr(string(msg))
 	cmds := []tea.Cmd{m.getMoves(), m.updateMovesListCmd()}
-	if err != nil {
-		m.err = err
-	} else {
-		m.turn++
-		m.err = nil
-	}
 
 	if m.chessGame.Outcome() != chess.NoOutcome {
 		cmds = append(cmds, m.endGame(m.chessGame.Outcome().String()))

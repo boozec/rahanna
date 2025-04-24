@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/boozec/rahanna/internal/api/database"
+	"github.com/boozec/rahanna/pkg/p2p"
 	"github.com/boozec/rahanna/pkg/ui/multiplayer"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -93,18 +94,17 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m, cmd = m.handleChessMoveMsg(msg)
 		cmds = append(cmds, cmd)
 	case SendRestoreMsg:
-		cmd = m.handleSendRestoreMsg()
+		cmd = m.handleSendRestoreMsg(p2p.NetworkID(msg))
 		cmds = append(cmds, cmd)
 	case RestoreMoves:
 		cmd = m.handleRestoreMoves(msg)
 		cmds = append(cmds, cmd)
-
 	case database.Game:
 		m, cmd = m.handleDatabaseGameMsg(msg)
 		cmds = append(cmds, cmd, m.updateMovesListCmd())
 	case EndGameMsg:
 		if msg.abandoned {
-			if m.network.Me() == m.playerPeer(1) {
+			if m.network.Me() == m.playerPeer(1) || m.network.Me() == m.playerPeer(3) {
 				m.game.Outcome = string(chess.WhiteWon)
 			} else {
 				m.game.Outcome = string(chess.BlackWon)
@@ -115,7 +115,7 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.err = m.network.Close()
 	case RestoreGameMsg:
-		m.network.Send([]byte("restore"), []byte(m.network.Me()))
+		m.network.SendAll([]byte("restore"), []byte(m.network.Me()))
 		m.restore = false
 
 	case error:
@@ -135,8 +135,7 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if err != nil {
 						m.err = err
 					} else {
-						m.turn++
-						m.network.Send([]byte("new-move"), []byte(moveStr))
+						m.network.SendAll([]byte("new-move"), []byte(moveStr))
 						m.err = nil
 					}
 					cmds = append(cmds, m.getMoves(), m.updateMovesListCmd())
@@ -187,12 +186,12 @@ func (m GameModel) View() string {
 		switch m.game.Outcome {
 		case string(chess.WhiteWon):
 			outcome = "White won"
-			if m.network.Me() == m.playerPeer(1) {
+			if m.network.Me() == m.playerPeer(1) || m.network.Me() == m.playerPeer(3) {
 				outcome += " (YOU)"
 			}
 		case string(chess.BlackWon):
 			outcome = "Black won"
-			if m.network.Me() == m.playerPeer(2) {
+			if m.network.Me() == m.playerPeer(2) || m.network.Me() == m.playerPeer(4) {
 				outcome += " (YOU)"
 			}
 		case string(chess.Draw):
@@ -243,9 +242,22 @@ func (m GameModel) View() string {
 		errorStr = m.err.Error()
 	}
 
+	var playersHeader string
+	switch m.game.Type {
+	case database.SingleGameType:
+		playersHeader = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#f1c40f")).
+			Render(fmt.Sprintf("♔ %s vs ♚ %s", m.game.Player1.Username, m.game.Player2.Username))
+	case database.PairGameType:
+		playersHeader = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#f1c40f")).
+			Render(fmt.Sprintf("♔ %s - %s vs ♚ %s - %s",
+				m.game.Player1.Username, m.game.Player3.Username, m.game.Player2.Username, m.game.Player4.Username))
+	}
+
 	content := lipgloss.JoinVertical(
 		lipgloss.Center,
-		lipgloss.NewStyle().Foreground(lipgloss.Color("#f1c40f")).Render(fmt.Sprintf("♔ %s vs ♚ %s", m.game.Player1.Username, m.game.Player2.Username)),
+		playersHeader,
 		lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			availableMovesListView,

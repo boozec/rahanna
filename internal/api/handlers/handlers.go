@@ -11,7 +11,6 @@ import (
 	"github.com/boozec/rahanna/internal/logger"
 	"github.com/boozec/rahanna/pkg/p2p"
 	"github.com/gorilla/mux"
-	"gorm.io/gorm"
 )
 
 type NewGameRequest struct {
@@ -106,7 +105,8 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var payload struct {
-		IP string `json:"ip"`
+		IP   string            `json:"ip"`
+		Type database.GameType `json:"type"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -125,11 +125,10 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 	}
 
 	play := database.Game{
+		Type:       payload.Type,
 		Player1ID:  claims.UserID,
-		Player2ID:  nil,
 		Name:       name,
 		IP1:        payload.IP,
-		IP2:        "",
 		Outcome:    "*",
 		LastPlayer: 1,
 	}
@@ -139,7 +138,7 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{"id": play.ID, "name": name})
+	json.NewEncoder(w).Encode(map[string]interface{}{"id": play.ID, "type": play.Type, "name": name})
 }
 
 func EnterGame(w http.ResponseWriter, r *http.Request) {
@@ -171,18 +170,55 @@ func EnterGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if game.Player2ID == nil {
-		game.Player2ID = &claims.UserID
-		game.IP2 = payload.IP
-		game.LastPlayer = 2
-	} else {
-		if game.Player1ID == claims.UserID {
-			game.IP1 = payload.IP
-			game.LastPlayer = 1
-		} else {
+	switch game.Type {
+	case database.SingleGameType:
+		if game.Player2ID == nil {
+			game.Player2ID = &claims.UserID
 			game.IP2 = payload.IP
 			game.LastPlayer = 2
+		} else {
+			switch claims.UserID {
+			case game.Player1ID:
+				game.IP1 = payload.IP
+				game.LastPlayer = 1
+			case *game.Player2ID:
+				game.IP2 = payload.IP
+				game.LastPlayer = 2
+			}
 		}
+
+	case database.PairGameType:
+		if game.Player2ID == nil {
+			game.Player2ID = &claims.UserID
+			game.IP2 = payload.IP
+			game.LastPlayer = 2
+		} else if game.Player3ID == nil {
+			game.Player3ID = &claims.UserID
+			game.IP3 = payload.IP
+			game.LastPlayer = 3
+		} else if game.Player4ID == nil {
+			game.Player4ID = &claims.UserID
+			game.IP4 = payload.IP
+			game.LastPlayer = 4
+		} else {
+			switch claims.UserID {
+			case game.Player1ID:
+				game.IP1 = payload.IP
+				game.LastPlayer = 1
+			case *game.Player2ID:
+				game.IP2 = payload.IP
+				game.LastPlayer = 2
+			case *game.Player3ID:
+				game.IP3 = payload.IP
+				game.LastPlayer = 3
+			case *game.Player4ID:
+				game.IP4 = payload.IP
+				game.LastPlayer = 4
+			}
+		}
+
+	default:
+		log.Fatal("Game type not recognized")
 	}
 
 	game.UpdatedAt = time.Now()
@@ -195,6 +231,8 @@ func EnterGame(w http.ResponseWriter, r *http.Request) {
 	result := db.Where("id = ?", game.ID).
 		Preload("Player1", auth.OmitPassword).
 		Preload("Player2", auth.OmitPassword).
+		Preload("Player3", auth.OmitPassword).
+		Preload("Player4", auth.OmitPassword).
 		First(&game)
 
 	if result.Error != nil {
@@ -218,13 +256,13 @@ func AllPlay(w http.ResponseWriter, r *http.Request) {
 	db, _ := database.GetDb()
 	var games []database.Game
 
-	if result := db.Where("player1_id = ? OR player2_id = ?", claims.UserID, claims.UserID).
-		Preload("Player1", func(db *gorm.DB) *gorm.DB {
-			return db.Omit("Password")
-		}).
-		Preload("Player2", func(db *gorm.DB) *gorm.DB {
-			return db.Omit("Password")
-		}).
+	if result := db.Where("player1_id = ? OR player2_id = ? OR player3_id = ? OR player4_id = ?",
+		claims.UserID, claims.UserID, claims.UserID, claims.UserID,
+	).
+		Preload("Player1", auth.OmitPassword).
+		Preload("Player2", auth.OmitPassword).
+		Preload("Player3", auth.OmitPassword).
+		Preload("Player4", auth.OmitPassword).
 		Order("updated_at DESC").
 		Find(&games); result.Error != nil {
 		JsonError(&w, result.Error.Error())
@@ -249,13 +287,12 @@ func GetGameId(w http.ResponseWriter, r *http.Request) {
 	db, _ := database.GetDb()
 	var game database.Game
 
-	if result := db.Where("id = ? AND (player1_id = ? OR player2_id = ?)", id, claims.UserID, claims.UserID).
-		Preload("Player1", func(db *gorm.DB) *gorm.DB {
-			return db.Omit("Password")
-		}).
-		Preload("Player2", func(db *gorm.DB) *gorm.DB {
-			return db.Omit("Password")
-		}).
+	if result := db.Where("id = ? AND (player1_id = ? OR player2_id = ? OR player3_id = ? OR player4_id = ?)",
+		id, claims.UserID, claims.UserID, claims.UserID, claims.UserID).
+		Preload("Player1", auth.OmitPassword).
+		Preload("Player2", auth.OmitPassword).
+		Preload("Player3", auth.OmitPassword).
+		Preload("Player4", auth.OmitPassword).
 		First(&game); result.Error != nil {
 		JsonError(&w, result.Error.Error())
 		return
@@ -291,8 +328,8 @@ func EndGame(w http.ResponseWriter, r *http.Request) {
 
 	// FIXME: this is not secure
 	if result := db.Where(
-		"id = ? AND (player1_id = ? OR player2_id = ?)",
-		id, claims.UserID, claims.UserID,
+		"id = ? AND (player1_id = ? OR player2_id = ? OR player3_id = ? OR player4_id = ?)",
+		id, claims.UserID, claims.UserID, claims.UserID, claims.UserID,
 	).First(&game); result.Error != nil {
 		JsonError(&w, result.Error.Error())
 		return
@@ -308,6 +345,8 @@ func EndGame(w http.ResponseWriter, r *http.Request) {
 	result := db.Where("id = ?", game.ID).
 		Preload("Player1", auth.OmitPassword).
 		Preload("Player2", auth.OmitPassword).
+		Preload("Player3", auth.OmitPassword).
+		Preload("Player4", auth.OmitPassword).
 		First(&game)
 
 	if result.Error != nil {

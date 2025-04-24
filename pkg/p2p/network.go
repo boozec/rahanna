@@ -101,6 +101,10 @@ func (n *TCPNetwork) Close() error {
 
 // Add a new peer connection to the local peer
 func (n *TCPNetwork) AddPeer(remoteID NetworkID, addr string) {
+	if remoteID == EmptyNetworkID {
+		return
+	}
+
 	n.Lock()
 	n.connections[remoteID] = PeerConnection{Address: addr}
 	n.Unlock()
@@ -143,7 +147,7 @@ func (n *TCPNetwork) Send(remoteID NetworkID, messageType []byte, payload []byte
 		n.removeConnection(remoteID)
 		return fmt.Errorf("failed to send message: %v", err)
 	} else {
-		n.Logger.Sugar().Infof("sent message to '%s' (%s): %s", remoteID, peerConn.Address, string(message.Payload))
+		n.Logger.Sugar().Infof("sent message to '%s' (%s): type='%s', payload='%s'", remoteID, peerConn.Address, message.Type, message.Payload)
 	}
 
 	return nil
@@ -207,7 +211,6 @@ func (n *TCPNetwork) handleConnection(conn net.Conn) {
 			n.removeConnection(remoteID)
 			return
 		}
-
 	}
 
 	n.Logger.Sugar().Infof("connected to remote peer %s (%s)\n", remoteID, remoteAddr)
@@ -248,7 +251,7 @@ func (n *TCPNetwork) listenForMessages(conn net.Conn, remoteID NetworkID) {
 			continue
 		}
 
-		n.Logger.Sugar().Infof("received message from '%s' (%s): %s", message.Source, remoteAddr, string(message.Payload))
+		n.Logger.Sugar().Infof("received message from '%s' (%s): type='%s', payload='%s'", message.Source, remoteAddr, message.Type, message.Payload)
 
 		if n.OnReceiveFn != nil {
 			n.OnReceiveFn(message)
@@ -284,7 +287,6 @@ func (n *TCPNetwork) retryConnect(remoteID NetworkID, addr string) {
 			n.Lock()
 			n.connections[remoteID] = PeerConnection{Conn: conn, Address: addr}
 			n.Unlock()
-			go n.handleConnection(conn)
 			return
 		} else {
 			n.Logger.Sugar().Errorf("failed to connect to %s (%s): %v. Retrying in %v...", remoteID, addr, err, retryDelay)

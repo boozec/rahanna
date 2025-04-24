@@ -1,6 +1,7 @@
 package multiplayer
 
 import (
+	"slices"
 	"time"
 
 	"github.com/boozec/rahanna/internal/logger"
@@ -12,20 +13,21 @@ type MoveType string
 
 const (
 	AbandonGameMessage    MoveType = "abandon"
-	RestoreGameMessage    MoveType = "restore"
-	RestoreAckGameMessage MoveType = "restore-ack"
 	MoveGameMessage       MoveType = "new-move"
+	RestoreAckGameMessage MoveType = "restore-ack"
+	RestoreGameMessage    MoveType = "restore"
 )
 
 type GameMove struct {
-	Type    []byte `json:"type"`
-	Payload []byte `json:"payload"`
+	Source  p2p.NetworkID `json:"source"`
+	Type    []byte        `json:"type"`
+	Payload []byte        `json:"payload"`
 }
 
 type GameNetwork struct {
 	server *p2p.TCPNetwork
 	me     p2p.NetworkID
-	peer   p2p.NetworkID
+	peers  []p2p.NetworkID
 }
 
 // Wrapper to a `TCPNetwork`
@@ -44,20 +46,32 @@ func NewGameNetwork(localID string, address string, onHandshake p2p.NetworkHands
 	}
 }
 
-func (n *GameNetwork) Peer() p2p.NetworkID {
-	return n.peer
+func (n *GameNetwork) Peers() []p2p.NetworkID {
+	return n.peers
 }
 
 func (n *GameNetwork) Me() p2p.NetworkID {
 	return n.me
 }
 
-func (n *GameNetwork) Send(messageType []byte, payload []byte) error {
-	return n.server.Send(n.peer, messageType, payload)
+// Send a message to all peers
+func (n *GameNetwork) SendAll(messageType []byte, payload []byte) error {
+	for _, peer := range n.peers {
+		n.server.Send(peer, messageType, payload)
+	}
+
+	return nil
+}
+
+// Send a message to only one peer
+func (n *GameNetwork) Send(peer p2p.NetworkID, messageType []byte, payload []byte) error {
+	return n.server.Send(peer, messageType, payload)
 }
 
 func (n *GameNetwork) AddPeer(remoteID p2p.NetworkID, addr string) {
-	n.peer = remoteID
+	if exists := slices.Contains(n.peers, remoteID); !exists {
+		n.peers = append(n.peers, remoteID)
+	}
 	n.server.AddPeer(remoteID, addr)
 }
 

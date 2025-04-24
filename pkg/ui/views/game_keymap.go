@@ -38,13 +38,13 @@ func (m GameModel) handleKeyMsg(msg tea.KeyMsg) (GameModel, tea.Cmd) {
 		// Abandon game only if it is not finished
 		if m.game.Outcome == "*" {
 			var outcome string
-			if m.network.Me() == m.playerPeer(1) {
+			if m.network.Me() == m.playerPeer(1) || m.network.Me() == m.playerPeer(3) {
 				outcome = string(chess.BlackWon)
 			} else {
 				outcome = string(chess.WhiteWon)
 			}
 
-			m.network.Send([]byte("abandon"), []byte("🏳️"))
+			m.network.SendAll([]byte("abandon"), []byte("🏳️"))
 			return m, m.endGame(outcome)
 		}
 	case key.Matches(msg, m.keys.Quit):

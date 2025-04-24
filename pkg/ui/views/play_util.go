@@ -45,13 +45,13 @@ func formatGamesForPage(userID int, games []database.Game, altCodeStyle lipgloss
 		if game.Outcome != "*" {
 			if len(game.Outcome) >= 2 {
 				if game.Outcome[0:2] == "1-" {
-					if game.Player1.ID == userID {
+					if game.Player1.ID == userID || game.Player3 != nil && game.Player3.ID == userID {
 						icon = winIcon
 					} else {
 						icon = loseIcon
 					}
 				} else if game.Outcome[0:2] == "0-" {
-					if game.Player2 != nil && game.Player2.ID == userID {
+					if game.Player2 != nil && game.Player2.ID == userID || game.Player4 != nil && game.Player4.ID == userID {
 						icon = winIcon
 					} else {
 						icon = loseIcon
