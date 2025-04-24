@@ -16,7 +16,17 @@ before:
     - go generate ./...
 
 builds:
-  - env:
+  - id: api
+    main: ./cmd/api/main.go
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+  - id: ui
+    main: ./cmd/ui/main.go
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
@@ -24,7 +34,8 @@ builds:
       - darwin
 
 archives:
-  - formats: [tar.gz]
+  - formats:
+      - tar.gz
     # this name template makes the OS and Arch compatible with the results of `uname`.
     name_template: >-
       {{ .ProjectName }}_
@@ -36,7 +47,8 @@ archives:
     # use zip for windows archives
     format_overrides:
       - goos: windows
-        formats: [zip]
+        formats:
+          - zip
 
 changelog:
   sort: asc
@@ -46,8 +58,6 @@ changelog:
       - "^test:"
 
 release:
-  footer: >-
-
+  footer: |
     ---
-
     Released by [GoReleaser](https://github.com/goreleaser/goreleaser).
