@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/boozec/rahanna/internal/api/database"
 	"github.com/boozec/rahanna/pkg/p2p"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -23,8 +24,11 @@ func (m GameModel) handleSendRestoreMsg(source p2p.NetworkID) tea.Cmd {
 	peers := map[int]string{
 		1: m.game.IP1,
 		2: m.game.IP2,
-		3: m.game.IP3,
-		4: m.game.IP4,
+	}
+
+	if m.game.Type == database.PairGameType {
+		peers[3] = m.game.IP3
+		peers[4] = m.game.IP4
 	}
 
 	myPlayerNum := -1
