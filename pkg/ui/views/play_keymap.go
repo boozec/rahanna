@@ -22,14 +22,15 @@ const (
 
 // Keyboard controls
 type playKeyMap struct {
-	EnterNewGame       key.Binding
-	StartNewSingleGame key.Binding
-	StartNewPairGame   key.Binding
-	RestoreGame        key.Binding
-	GoLogout           key.Binding
-	NextPage           key.Binding
-	PrevPage           key.Binding
-	Exit               key.Binding
+	EnterNewGame           key.Binding
+	StartNewSingleGame     key.Binding
+	StartNewPairGame       key.Binding
+	StartNewPairRandomGame key.Binding
+	RestoreGame            key.Binding
+	GoLogout               key.Binding
+	NextPage               key.Binding
+	PrevPage               key.Binding
+	Exit                   key.Binding
 }
 
 // Default key bindings for the play model
@@ -44,7 +45,11 @@ var defaultPlayKeyMap = playKeyMap{
 	),
 	StartNewPairGame: key.NewBinding(
 		key.WithKeys("alt+p", "alt+P"),
-		key.WithHelp("Alt+P", "Start a new pair play"),
+		key.WithHelp("Alt+P", "Start a new co-op play"),
+	),
+	StartNewPairRandomGame: key.NewBinding(
+		key.WithKeys("alt+r", "alt+R"),
+		key.WithHelp("Alt+R", "Start a new co-op play (random choose)"),
 	),
 	RestoreGame: key.NewBinding(
 		key.WithKeys("0", "1", "2", "3", "4", "5", "6", "7", "8", "9"),
@@ -83,7 +88,7 @@ func (m PlayModel) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.page = StartGamePage
 			if !m.isLoading {
 				m.isLoading = true
-				return m, m.newGameCallback(database.SingleGameType)
+				return m, m.newGameCallback(database.SingleGameType, database.SequentialChooseType)
 			}
 
 			return m, cmd
@@ -93,7 +98,18 @@ func (m PlayModel) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.page = StartGamePage
 			if !m.isLoading {
 				m.isLoading = true
-				return m, m.newGameCallback(database.PairGameType)
+				return m, m.newGameCallback(database.PairGameType, database.SequentialChooseType)
+			}
+
+			return m, cmd
+		}
+
+	case key.Matches(msg, m.keys.StartNewPairRandomGame):
+		if m.page == LandingPage {
+			m.page = StartGamePage
+			if !m.isLoading {
+				m.isLoading = true
+				return m, m.newGameCallback(database.PairGameType, database.RandomChooseType)
 			}
 
 			return m, cmd
@@ -162,6 +178,10 @@ func (m PlayModel) renderNavigationButtons() string {
 			altCodeStyle.Render(m.keys.StartNewPairGame.Help().Key),
 			m.keys.StartNewPairGame.Help().Desc)
 
+		startPairRandomKey := fmt.Sprintf("%s %s",
+			altCodeStyle.Render(m.keys.StartNewPairRandomGame.Help().Key),
+			m.keys.StartNewPairRandomGame.Help().Desc)
+
 		nextPageKey := fmt.Sprintf("%s %s",
 			altCodeStyle.Render(m.keys.NextPage.Help().Key),
 			m.keys.NextPage.Help().Desc)
@@ -175,6 +195,7 @@ func (m PlayModel) renderNavigationButtons() string {
 			enterKey,
 			startSingleKey,
 			startPairKey,
+			startPairRandomKey,
 			restoreKey,
 			lipgloss.JoinHorizontal(lipgloss.Left, prevPageKey, " | ", nextPageKey),
 			logoutKey,

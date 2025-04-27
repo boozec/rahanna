@@ -60,6 +60,7 @@ func (m GameModel) handleSendRestoreMsg(source p2p.NetworkID) tea.Cmd {
 	}
 
 	m.err = m.network.Send(source, []byte("restore-ack"), []byte(payload))
+	m.err = m.network.Send(source, []byte("define-turn"), []byte(string(m.turn)))
 
 	return nil
 }

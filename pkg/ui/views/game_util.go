@@ -3,7 +3,6 @@ package views
 import (
 	"fmt"
 
-	"github.com/boozec/rahanna/internal/api/database"
 	"github.com/boozec/rahanna/pkg/p2p"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -32,18 +31,7 @@ func (m GameModel) isMyTurn() bool {
 		return false
 	}
 
-	var totalPlayers int
-
-	switch m.game.Type {
-	case database.SingleGameType:
-		totalPlayers = 2
-	case database.PairGameType:
-		totalPlayers = 4
-	}
-
-	moves := len(m.chessGame.Moves())
-	currentPlayer := (moves % totalPlayers) + 1
-	return m.network.Me() == m.playerPeer(currentPlayer)
+	return m.network.Me() == m.turn
 }
 
 func (m GameModel) playerPeer(n int) p2p.NetworkID {

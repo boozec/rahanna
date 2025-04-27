@@ -18,11 +18,12 @@ import (
 )
 
 type responseOk struct {
-	Name   string `json:"name"`
-	Type   string `json:"type"`
-	GameID int    `json:"id"`
-	IP     string `json:"ip"`
-	Port   int    `json:"int"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	MoveChoose string `json:"move_choose_type"`
+	GameID     int    `json:"id"`
+	IP         string `json:"ip"`
+	Port       int    `json:"int"`
 }
 
 // API response types
@@ -159,7 +160,7 @@ func (m *PlayModel) handleGamesResponse(msg []database.Game) (tea.Model, tea.Cmd
 	return m, nil
 }
 
-func (m *PlayModel) newGameCallback(gameType database.GameType) tea.Cmd {
+func (m *PlayModel) newGameCallback(gameType database.GameType, moveChooseType database.MoveChooseType) tea.Cmd {
 	return func() tea.Msg {
 		// Get authorization token
 		authorization, err := getAuthorizationToken()
@@ -177,8 +178,9 @@ func (m *PlayModel) newGameCallback(gameType database.GameType) tea.Cmd {
 
 		// Prepare request payload
 		payload, err := json.Marshal(map[string]string{
-			"ip":   fmt.Sprintf("%s:%d", ip, port),
-			"type": string(gameType),
+			"ip":               fmt.Sprintf("%s:%d", ip, port),
+			"type":             string(gameType),
+			"move_choose_type": string(moveChooseType),
 		})
 		if err != nil {
 			return playResponse{Error: err.Error()}

@@ -3,9 +3,12 @@ package views
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
+	"time"
 
 	"github.com/boozec/rahanna/internal/api/database"
+	"github.com/boozec/rahanna/pkg/p2p"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/notnil/chess"
 )
@@ -42,6 +45,19 @@ func (m GameModel) handleDatabaseGameMsg(msg database.Game) (GameModel, tea.Cmd)
 		if playerNum != myPlayerNum && ip != "" {
 			m.network.AddPeer(m.playerPeer(playerNum), ip)
 		}
+	}
+
+	if myPlayerNum == 1 && m.turn == p2p.EmptyNetworkID {
+		// FIXME: use another way instead of sleep
+		time.Sleep(2 * time.Second)
+		if m.game.MoveChoose == database.RandomChooseType {
+			players := []int{1, 3}
+			m.turn = m.playerPeer(players[rand.Intn(len(players))])
+		} else {
+			m.turn = m.playerPeer(1)
+		}
+		m.network.SendAll([]byte("define-turn"), []byte(string(m.turn)))
+
 	}
 
 	if m.restore {

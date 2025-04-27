@@ -16,6 +16,7 @@ const (
 	MoveGameMessage       MoveType = "new-move"
 	RestoreAckGameMessage MoveType = "restore-ack"
 	RestoreGameMessage    MoveType = "restore"
+	DefineTurnMessage     MoveType = "define-turn"
 )
 
 type GameMove struct {

@@ -105,8 +105,9 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var payload struct {
-		IP   string            `json:"ip"`
-		Type database.GameType `json:"type"`
+		IP         string                  `json:"ip"`
+		Type       database.GameType       `json:"type"`
+		MoveChoose database.MoveChooseType `json:"move_choose_type"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -126,6 +127,7 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 
 	play := database.Game{
 		Type:       payload.Type,
+		MoveChoose: payload.MoveChoose,
 		Player1ID:  claims.UserID,
 		Name:       name,
 		IP1:        payload.IP,
@@ -138,7 +140,9 @@ func NewPlay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{"id": play.ID, "type": play.Type, "name": name})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"id": play.ID, "type": play.Type, "moove_choose_type": play.MoveChoose, "name": name,
+	})
 }
 
 func EnterGame(w http.ResponseWriter, r *http.Request) {

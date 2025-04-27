@@ -32,7 +32,7 @@ type GameModel struct {
 	network            *multiplayer.GameNetwork
 	chessGame          *chess.Game
 	incomingMoves      chan multiplayer.GameMove
-	turn               int
+	turn               p2p.NetworkID
 	availableMovesList list.Model
 }
 
@@ -61,7 +61,6 @@ func NewGameModel(width, height int, currentGameID int, network *multiplayer.Gam
 		network:            network,
 		chessGame:          chess.NewGame(chess.UseNotation(chess.UCINotation{})),
 		incomingMoves:      make(chan multiplayer.GameMove),
-		turn:               0,
 		availableMovesList: moveList,
 		restore:            restore,
 	}
@@ -104,6 +103,12 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.userID, m.err = getUserID()
 		m, cmd = m.handleDatabaseGameMsg(msg)
 		cmds = append(cmds, cmd, m.updateMovesListCmd())
+	case SaveTurnMsg:
+		m, cmd = m.handleSaveTurnMsg(msg)
+		cmds = append(cmds, cmd)
+	case SendNewTurnMsg:
+		m, cmd = m.handleDefineTurnMsg()
+		cmds = append(cmds, cmd)
 	case EndGameMsg:
 		if msg.abandoned {
 			_ = m.getGame()()
@@ -136,7 +141,7 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.network.SendAll([]byte("new-move"), []byte(moveStr))
 						m.err = nil
 					}
-					cmds = append(cmds, m.getMoves(), m.updateMovesListCmd())
+					cmds = append(cmds, m.getMoves(), m.updateMovesListCmd(), m.sendNewTurnCmd())
 
 					if m.chessGame.Outcome() != chess.NoOutcome {
 						cmds = append(cmds, m.endGame(m.chessGame.Outcome().String(), false))
