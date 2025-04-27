@@ -7,6 +7,7 @@ import (
 
 	"github.com/boozec/rahanna/internal/api/database"
 	"github.com/boozec/rahanna/pkg/p2p"
+	"github.com/boozec/rahanna/pkg/ui/multiplayer"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -59,8 +60,8 @@ func (m GameModel) handleSendRestoreMsg(source p2p.NetworkID) tea.Cmd {
 		payload += fmt.Sprintf("%s\n", move.String())
 	}
 
-	m.err = m.network.Send(source, []byte("restore-ack"), []byte(payload))
-	m.err = m.network.Send(source, []byte("define-turn"), []byte(string(m.turn)))
+	m.err = m.network.Send(source, []byte(string(multiplayer.RestoreAckGameMessage)), []byte(payload))
+	m.err = m.network.Send(source, []byte(string(multiplayer.DefineTurnMessage)), []byte(string(m.turn)))
 
 	return nil
 }

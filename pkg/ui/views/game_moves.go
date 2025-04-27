@@ -127,7 +127,7 @@ func (m GameModel) handleDefineTurnMsg() (GameModel, tea.Cmd) {
 		}
 	}
 
-	m.network.SendAll([]byte("define-turn"), []byte(string(m.turn)))
+	m.network.SendAll([]byte(string(multiplayer.DefineTurnMessage)), []byte(string(m.turn)))
 
 	return m, tea.Batch(cmds...)
 }

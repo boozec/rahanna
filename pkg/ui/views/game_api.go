@@ -9,6 +9,7 @@ import (
 
 	"github.com/boozec/rahanna/internal/api/database"
 	"github.com/boozec/rahanna/pkg/p2p"
+	"github.com/boozec/rahanna/pkg/ui/multiplayer"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/notnil/chess"
 )
@@ -56,7 +57,7 @@ func (m GameModel) handleDatabaseGameMsg(msg database.Game) (GameModel, tea.Cmd)
 		} else {
 			m.turn = m.playerPeer(1)
 		}
-		m.network.SendAll([]byte("define-turn"), []byte(string(m.turn)))
+		m.network.SendAll([]byte(string(multiplayer.DefineTurnMessage)), []byte(string(m.turn)))
 
 	}
 
@@ -135,7 +136,7 @@ func (m *GameModel) endGame(outcome string, abandon bool) tea.Cmd {
 		}
 
 		if abandon {
-			m.network.SendAll([]byte("abandon"), []byte("🏳️"))
+			m.network.SendAll([]byte(string(multiplayer.AbandonGameMessage)), []byte("🏳️"))
 		}
 
 		return game

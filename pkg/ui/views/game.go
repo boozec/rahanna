@@ -118,7 +118,7 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.err = m.network.Close()
 	case RestoreGameMsg:
-		m.network.SendAll([]byte("restore"), []byte(m.network.Me()))
+		m.network.SendAll([]byte(string(multiplayer.RestoreGameMessage)), []byte(m.network.Me()))
 		m.restore = false
 
 	case error:
@@ -138,7 +138,7 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if err != nil {
 						m.err = err
 					} else {
-						m.network.SendAll([]byte("new-move"), []byte(moveStr))
+						m.network.SendAll([]byte(string(multiplayer.MoveGameMessage)), []byte(moveStr))
 						m.err = nil
 					}
 					cmds = append(cmds, m.getMoves(), m.updateMovesListCmd(), m.sendNewTurnCmd())
